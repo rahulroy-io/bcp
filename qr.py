@@ -54,3 +54,4 @@ def number_to_string(number):
     string = ''.join(chr(int(digit)) for digit in digits)
     return string
 
+bcp "SELECT * FROM [testdatabase].[dbo].[employee]" QUERYOUT op -S sql-server-source.cfoapfkvmzlt.us-east-2.rds.amazonaws.com -U admin -P rahulroy53 -n
