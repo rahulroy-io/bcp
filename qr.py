@@ -37,3 +37,20 @@ TBLPROPERTIES (
 
 # Save the QR code image
 qr_image.save("qr_code.png")
+
+
+
+def string_to_number(string):
+    # Convert each character to its ASCII value and concatenate them
+    number = ''.join(str(ord(char)) for char in string)
+    return int(number)
+
+def number_to_string(number):
+    # Convert the number to a string and split it into pairs of digits
+    number_str = str(number)
+    digits = [number_str[i:i+2] for i in range(0, len(number_str), 2)]
+
+    # Convert each pair of digits back to its corresponding character
+    string = ''.join(chr(int(digit)) for digit in digits)
+    return string
+
