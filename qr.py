@@ -55,3 +55,36 @@ def number_to_string(number):
     return string
 
 bcp "SELECT * FROM [testdatabase].[dbo].[employee]" QUERYOUT op -S sql-server-source.cfoapfkvmzlt.us-east-2.rds.amazonaws.com -U admin -P rahulroy53 -n
+
+def uploadFile(inputStream, filePath, bucketName):
+    s3_resource = boto3.resource('s3')
+    s3_client = boto3.client('s3')
+
+    def isBucketExists():
+        try:
+            s3_resource.meta.client.head_bucket(Bucket=bucketName)
+        except botocore.exceptions.ClientError as e:
+            return False
+        else :
+            return True
+    #logger  
+    if (not isBucketExists()):
+        raise Exception("Upload failed. Bucket {} does not exist".format(bucketName))
+
+    obj = s3_resource.Object(bucketName, filePath)
+    response = obj.put(Body=inputStream)
+    res = response.get("ResponseMetadata")
+
+    if res.get('HTTPStatusCode') == 200:
+        job.logger().info(f, f"File uploaded at {filePath}")
+        return True
+    else :
+        job.logger().info(f, f"Upload failed with HTTPStatusCode {res.get('HTTPStatusCode')}")
+        return False
+
+input_stream = bytes(json.dumps(data).encode('UTF-8'))
+if uploadFile(input_stream, filepath, bucket_target) :
+    job.logger().info(f, f"File s3a://{bucket_target}/{filepath} uploaded successfully")
+    job.logger().info(f, f'###################_TASK-3_JOB_RUN_SUCCESSFULL_###################')
+else :
+    raise Exception(f"Upload Failed")
