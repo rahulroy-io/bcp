@@ -88,3 +88,27 @@ if uploadFile(input_stream, filepath, bucket_target) :
     job.logger().info(f, f'###################_TASK-3_JOB_RUN_SUCCESSFULL_###################')
 else :
     raise Exception(f"Upload Failed")
+
+
+def send_request(params) :
+    response = requests.get(url=base_api_url, params=params, auth=(user, pwd), headers=headers)
+    if response.status_code != 200 :
+        print(f"api response status code : {response.status_code}")
+        raise Exception(f"api response status code : {response.status_code}")
+    else :
+        print(f"DATA COUNT {len(response.json()['result'])}")
+        print(f"api headers {response.headers}")
+        return response
+
+with cf.ThreadPoolExecutor() as executor :
+        results = executor.map(send_request, params_params)
+
+for response in results :
+    append response.json()['result']
+
+input_stream = bytes(json.dumps(data).encode('UTF-8'))
+if uploadFile(input_stream, filepath, bucket_target) :
+    print(f"File s3a://{bucket_target}/{filepath} uploaded successfully")
+    print(f'###################_TASK-3_JOB_RUN_SUCCESSFULL_###################')
+else :
+    raise Exception(f"Upload Failed")
