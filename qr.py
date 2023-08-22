@@ -139,3 +139,21 @@ def flatten(df):
                                 for field in df.schema.fields
                                 if type(field.dataType) == ArrayType or  type(field.dataType) == StructType])
     return df
+
+client = boto3.client('glue')
+
+response = client.start_crawler(
+                        Name=crawler
+                    )
+            
+response_get = client.get_crawler(Name=crawler)
+state = response_get["Crawler"]["State"]
+job.logger().info(f, f"Crawler '{crawler}' is {state.lower()}.")
+state_previous = state
+while (state != "READY") :
+    time.sleep(2)
+    response_get = client.get_crawler(Name=crawler)
+    state = response_get["Crawler"]["State"]
+    if state != state_previous:
+        job.logger().info(f, f"Crawler {crawler} is {state.lower()}.")
+        state_previous = state
