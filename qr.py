@@ -157,3 +157,27 @@ while (state != "READY") :
     if state != state_previous:
         job.logger().info(f, f"Crawler {crawler} is {state.lower()}.")
         state_previous = state
+
+
+# Specify the name of the crawler you want to run
+crawler_name = 'your-crawler-name'
+
+try:
+    # Start the crawler
+    response = glue_client.start_crawler(Name=crawler_name)
+    print("Crawler started successfully.")
+except ClientError as e:
+    if e.response['Error']['Code'] == 'CrawlerRunningException':
+        print("Crawler is already running. Waiting for it to finish...")
+        # You can wait for the crawler to finish here
+        while True:
+            try:
+                response = glue_client.start_crawler(Name=crawler_name)
+                break  # Crawler has finished, so it's safe to start it again
+            except ClientError as e:
+                if e.response['Error']['Code'] != 'CrawlerRunningException':
+                    raise  # Something else went wrong, raise the exception
+                time.sleep(30)  # Wait for a while and check again
+    else:
+        # Handle other ClientErrors here
+        raise
