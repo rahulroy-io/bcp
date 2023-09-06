@@ -191,3 +191,6 @@ SELECT
   END AS is_valid_email
 FROM your_table;
 
+SELECT *
+FROM your_table
+WHERE REGEXP_LIKE(email_column, '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$')
