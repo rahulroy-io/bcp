@@ -183,3 +183,11 @@ except ClientError as e:
         raise
 
 REGEXP_LIKE(email, '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,4}$')
+
+SELECT
+  CASE
+    WHEN email REGEXP '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$' THEN 'true'
+    ELSE 'false'
+  END AS is_valid_email
+FROM your_table;
+
