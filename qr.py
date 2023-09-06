@@ -181,3 +181,5 @@ except ClientError as e:
     else:
         # Handle other ClientErrors here
         raise
+
+REGEXP_LIKE(email, '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,4}$')
