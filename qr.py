@@ -204,3 +204,33 @@ FROM your_table
 WHERE regexp_like(email, '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,4}$');
 
 
+import boto3
+
+# Initialize the S3 client
+s3 = boto3.client('s3')
+
+# Specify the bucket name
+bucket_name = 'your-bucket-name'
+
+# Initialize the continuation token to None to start from the beginning
+continuation_token = None
+
+while True:
+    # List objects in the bucket with continuation token
+    response = s3.list_objects_v2(
+        Bucket=bucket_name,
+        ContinuationToken=continuation_token
+    )
+
+    # Process the objects in the current response
+    for obj in response.get('Contents', []):
+        print(f"Object Key: {obj['Key']}")
+
+    # Check if there are more objects to fetch
+    if response.get('IsTruncated', False):
+        continuation_token = response['NextContinuationToken']
+    else:
+        break  # No more objects to fetch, exit the loop
+
+
+
