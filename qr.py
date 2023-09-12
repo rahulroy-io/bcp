@@ -233,4 +233,18 @@ while True:
         break  # No more objects to fetch, exit the loop
 
 
+Action = 'outbound' # [ingest, structured, curated]
+Client = 'msil'
+Source = 's3' #[api, s3, mssql]
+Target = 'api' #[api, s3, mssql]
+Domain = 'crm' #[servicenow, azuredevops]
+EntityName = 'casemanagementcomplaint' #[feedback, complaint, contacts]
 
+job_name = f"job_{Client}_{Domain}_{EntityName}_{Source}_to_{Target}_{Action}"
+print (f"job_name : {job_name}")
+
+project_name = f"{Client}_{Domain}_{EntityName}_{Source}_to_{Target}_{Action}"
+print (f"project_name : {project_name}")
+
+crawler_name = f"crawler_{Client}_{Domain}_{EntityName}_{Source}_to_{Target}_{Action}"
+print (f"crawler_name : {crawler_name}")
