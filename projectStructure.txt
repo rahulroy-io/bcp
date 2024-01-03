@@ -54,24 +54,58 @@ Project Root:
 |   |-- Readme
 |   |-- Changelog
 
+
 @echo off
+set "rootFolder=Project Root"
 
-REM Define the project root directory
-set project_root=Your_Project_Root_Directory
+mkdir "%rootFolder%"
 
-REM Create the project root directory
-mkdir "%project_root%" && cd "%project_root%"
+cd "%rootFolder%"
 
-REM Create folders
-mkdir "Project_Documents\Requirements" && mkdir "Project_Documents\Project_Plan" && mkdir "Project_Documents\Risk_Log" && mkdir "Project_Documents\Stakeholder_Communication" && mkdir "Project_Documents\Meeting_Notes" && ^
-mkdir "Source_Code\Application_Code\Module1" && mkdir "Source_Code\Application_Code\Module2" && mkdir "Source_Code\Scripts" && mkdir "Source_Code\Libraries" && mkdir "Source_Code\Configurations" && ^
-mkdir "Documentation\Technical_Documentation" && mkdir "Documentation\Architecture" && mkdir "Documentation\Database_Design" && mkdir "Documentation\API_Documentation" && mkdir "Documentation\User_Documentation" && mkdir "Documentation\Release_Notes" && ^
-mkdir "Test\Test_Plan" && mkdir "Test\Test_Cases" && mkdir "Test\Test_Results" && mkdir "Test\Automated_Tests" && ^
-mkdir "Deployment\Deployment_Scripts" && mkdir "Deployment\Configuration_Files" && mkdir "Deployment\Release_Artifacts" && ^
-mkdir "Logs\Application_Logs" && mkdir "Logs\Deployment_Logs" && mkdir "Logs\Test_Logs" && ^
-mkdir "Tools\Third_Party_Tools" && mkdir "Tools\In-House_Tools" && ^
-mkdir "Resources\Images" && mkdir "Resources\Videos" && mkdir "Resources\Other_Media" && ^
-mkdir "Misc\License" && mkdir "Misc\Readme" && mkdir "Misc\Changelog"
+mkdir "Project_Documents"
+cd "Project_Documents"
+mkdir "Requirements" "Project_Plan" "Risk_Log" "Stakeholder_Communication" "Meeting_Notes"
+cd ..
 
-echo Folder structure created successfully.
+mkdir "Source_Code"
+cd "Source_Code"
+mkdir "Application_Code" "Scripts" "Libraries" "Configurations"
+cd ..
 
+mkdir "Documentation"
+cd "Documentation"
+mkdir "Technical_Documentation" "Architecture" "Database_Design" "API_Documentation" "User_Documentation" "Release_Notes"
+cd ..
+
+mkdir "Test"
+cd "Test"
+mkdir "Test_Plan" "Test_Cases" "Test_Results" "Automated_Tests"
+cd ..
+
+mkdir "Deployment"
+cd "Deployment"
+mkdir "Deployment_Scripts" "Configuration_Files" "Release_Artifacts"
+cd ..
+
+mkdir "Logs"
+cd "Logs"
+mkdir "Application_Logs" "Deployment_Logs" "Test_Logs"
+cd ..
+
+mkdir "Tools"
+cd "Tools"
+mkdir "Third_Party_Tools" "In-House_Tools"
+cd ..
+
+mkdir "Resources"
+cd "Resources"
+mkdir "Images" "Videos" "Other_Media"
+cd ..
+
+mkdir "Misc"
+cd "Misc"
+echo. > "License"
+echo. > "Readme"
+echo. > "Changelog"
+
+echo Folder structure created successfully!
