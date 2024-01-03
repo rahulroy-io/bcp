@@ -1,0 +1,26 @@
+YourDataMigrationProject
+├── documentation
+│   ├── technical_specifications
+│   ├── data_mapping
+│   ├── testing
+│   ├── security_compliance
+│   ├── training_materials
+│   ├── backup_rollback
+│   ├── change_management
+│   ├── post_migration_procedures
+│   ├── lessons_learned
+│   ├── project_charter
+│   └── project_plan
+├── source_data
+├── target_data
+├── scripts
+│   ├── extraction
+│   ├── transformation
+│   └── loading
+├── config
+├── logs
+├── reports
+├── tests
+│   └── data
+├── backups
+├── temp
