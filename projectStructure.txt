@@ -1,26 +1,107 @@
-YourDataMigrationProject
-├── documentation
-│   ├── technical_specifications
-│   ├── data_mapping
-│   ├── testing
-│   ├── security_compliance
-│   ├── training_materials
-│   ├── backup_rollback
-│   ├── change_management
-│   ├── post_migration_procedures
-│   ├── lessons_learned
-│   ├── project_charter
-│   └── project_plan
-├── source_data
-├── target_data
-├── scripts
-│   ├── extraction
-│   ├── transformation
-│   └── loading
-├── config
-├── logs
-├── reports
-├── tests
-│   └── data
-├── backups
-├── temp
+Project Root:
+|-- Project_Documents
+|   |-- Requirements
+|   |-- Project_Plan
+|   |-- Risk_Log
+|   |-- Stakeholder_Communication
+|   |-- Meeting_Notes
+|
+|-- Source_Code
+|   |-- Application_Code
+|   |   |-- Module1
+|   |   |-- Module2
+|   |   |-- ...
+|   |
+|   |-- Scripts
+|   |-- Libraries
+|   |-- Configurations
+|
+|-- Documentation
+|   |-- Technical_Documentation
+|   |-- Architecture
+|   |-- Database_Design
+|   |-- API_Documentation
+|   |-- User_Documentation
+|   |-- Release_Notes
+|
+|-- Test
+|   |-- Test_Plan
+|   |-- Test_Cases
+|   |-- Test_Results
+|   |-- Automated_Tests
+|
+|-- Deployment
+|   |-- Deployment_Scripts
+|   |-- Configuration_Files
+|   |-- Release_Artifacts
+|
+|-- Logs
+|   |-- Application_Logs
+|   |-- Deployment_Logs
+|   |-- Test_Logs
+|
+|-- Tools
+|   |-- Third_Party_Tools
+|   |-- In-House_Tools
+|
+|-- Resources
+|   |-- Images
+|   |-- Videos
+|   |-- Other_Media
+|
+|-- Misc
+|   |-- License
+|   |-- Readme
+|   |-- Changelog
+
+@echo off
+
+REM Define the project root directory
+set project_root=Your_Project_Root_Directory
+
+REM Create the project root directory
+mkdir "%project_root%"
+
+REM Define folder structure
+set folders=(
+    "Project_Documents\Requirements"
+    "Project_Documents\Project_Plan"
+    "Project_Documents\Risk_Log"
+    "Project_Documents\Stakeholder_Communication"
+    "Project_Documents\Meeting_Notes"
+    "Source_Code\Application_Code\Module1"
+    "Source_Code\Application_Code\Module2"
+    "Source_Code\Scripts"
+    "Source_Code\Libraries"
+    "Source_Code\Configurations"
+    "Documentation\Technical_Documentation"
+    "Documentation\Architecture"
+    "Documentation\Database_Design"
+    "Documentation\API_Documentation"
+    "Documentation\User_Documentation"
+    "Documentation\Release_Notes"
+    "Test\Test_Plan"
+    "Test\Test_Cases"
+    "Test\Test_Results"
+    "Test\Automated_Tests"
+    "Deployment\Deployment_Scripts"
+    "Deployment\Configuration_Files"
+    "Deployment\Release_Artifacts"
+    "Logs\Application_Logs"
+    "Logs\Deployment_Logs"
+    "Logs\Test_Logs"
+    "Tools\Third_Party_Tools"
+    "Tools\In-House_Tools"
+    "Resources\Images"
+    "Resources\Videos"
+    "Resources\Other_Media"
+    "Misc\License"
+    "Misc\Readme"
+    "Misc\Changelog"
+)
+
+REM Create folders
+for %%f in (%folders%) do mkdir "%project_root%\%%f"
+
+echo Folder structure created successfully.
+
