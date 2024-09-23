@@ -484,3 +484,17 @@ if __name__ == "__main__":
     # Execute the flows asynchronously
     appflow_manager.execute_async_flows(flow_name, date_ranges, max_concurrent=10)
 
+
+{
+	"Version": "2012-10-17",
+	"Statement": [
+		{
+			"Effect": "Allow",
+			"Action": [
+				"iam:GetRole",
+				"iam:PassRole"
+			],
+			"Resource": "arn:aws:iam::444215702433:role/glueRole"
+		}
+	]
+}
