@@ -1705,3 +1705,39 @@ for file in downloaded_files:
         file_path = os.path.join(output_dir, file)
         s3_client.upload_file(file_path, bucket_name, s3_folder + file)
         print(f"Uploaded {file} to S3.")
+
+import subprocess
+import os
+import boto3
+
+# Define the temporary directory for installed files
+install_dir = "/tmp/python_packages"
+
+# Create the directory
+os.makedirs(install_dir, exist_ok=True)
+
+# Define the requirements
+requirements = ["pandas", "numpy"]  # Add your dependencies here
+
+# Install packages into the temporary directory
+for package in requirements:
+    subprocess.run([
+        "pip", "install", package, 
+        "--target", install_dir
+    ], check=True)
+
+# Optional: List installed packages
+installed_packages = os.listdir(install_dir)
+print("Installed packages:", installed_packages)
+
+# Zip the installed packages for easy transfer
+zip_file = "/tmp/python_packages.zip"
+subprocess.run(["zip", "-r", zip_file, install_dir], check=True)
+
+# Upload the zip file to S3
+s3_client = boto3.client('s3')
+bucket_name = "your-s3-bucket"
+s3_key = "compatible-packages/python_packages.zip"
+
+s3_client.upload_file(zip_file, bucket_name, s3_key)
+print(f"Uploaded {zip_file} to S3 as {s3_key}")
