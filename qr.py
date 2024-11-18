@@ -1673,3 +1673,35 @@ print('##############TASK-7-REFRESH-ATHENA-COMPLETED################')
 
 print('##############JOB-COMPLETED-SUCCESSFULLY################')
 job.commit()
+
+import subprocess
+
+# Define the requirements
+requirements = ["pandas", "numpy"]  # Add your libraries here
+
+# Directory to save the wheel files
+output_dir = "/tmp/wheels"
+
+# Create the directory
+subprocess.run(["mkdir", "-p", output_dir], check=True)
+
+# Use pip download to fetch compatible wheels
+for package in requirements:
+    subprocess.run(["pip", "download", package, "--dest", output_dir], check=True)
+
+# Optionally, list downloaded files
+downloaded_files = subprocess.check_output(["ls", output_dir]).decode("utf-8").split("\n")
+print("Downloaded files:", downloaded_files)
+
+import boto3
+import os
+
+s3_client = boto3.client('s3')
+bucket_name = "your-s3-bucket"
+s3_folder = "compatible-wheels/"
+
+for file in downloaded_files:
+    if file:  # Skip empty lines
+        file_path = os.path.join(output_dir, file)
+        s3_client.upload_file(file_path, bucket_name, s3_folder + file)
+        print(f"Uploaded {file} to S3.")
