@@ -1741,3 +1741,36 @@ s3_key = "compatible-packages/python_packages.zip"
 
 s3_client.upload_file(zip_file, bucket_name, s3_key)
 print(f"Uploaded {zip_file} to S3 as {s3_key}")
+
+def create_delta_lake():
+    try :
+        schema = T.StructType([
+            T.StructField('job_run_id', T.StringType(), False),
+            T.StructField('response_code', T.StringType(), False),
+            T.StructField('reference_id', T.StringType(), False),
+            T.StructField('reference_number', T.StringType(), False),
+            T.StructField('target_crm_reference_number', T.StringType(), False),
+            T.StructField('created_at', T.StringType(), False),
+            T.StructField('save_required', T.StringType(), False),
+            T.StructField('payload', T.StringType(), False),
+            T.StructField('response', T.StringType(), False),
+            T.StructField('record_tsmp', T.StringType(), False)  
+        ])
+        df_deltalake = spark.createDataFrame([], schema)
+        df_deltalake.write.format('delta').save(f's3://msil-inbound-crm-outbound-non-prod/{Env}/history/data-store/{target_tablestream}')
+        athena_client = boto3.client('athena')
+        query_string = f'''
+            CREATE EXTERNAL TABLE {database}.{target_tablestream}
+            LOCATION 's3://msil-inbound-crm-outbound-non-prod/{Env}/history/data-store/{target_tablestream}'
+            TBLPROPERTIES (
+            'table_type'='DELTA'
+            )
+        '''
+        athena_response = athena_client.start_query_execution(QueryString=query_string,
+                                                              ResultConfiguration={'OutputLocation': 's3://msil-inbound-crm-tmp/athena/'})
+        time.sleep(10)
+        result = athena_client.get_query_results(QueryExecutionId=athena_response['QueryExecutionId'])['ResponseMetadata']['HTTPStatusCode']
+        if result != 200: 
+            raise Exception(f'something went wrong')
+    except Exception as e:
+        raise Exception(f'Forced Exception due to {e}')
