@@ -1774,3 +1774,12 @@ def create_delta_lake():
             raise Exception(f'something went wrong')
     except Exception as e:
         raise Exception(f'Forced Exception due to {e}')
+
+
+
+
+
+
+
+
+https://dbc-f46ce310-2494.cloud.databricks.com/settings/user/developer?o=3445049866680796
