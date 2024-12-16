@@ -1916,3 +1916,153 @@ filter_config = {
 requests = build_requests(base_url, filter_config)
 for req in requests:
     print(req)
+
+
+from urllib.parse import urlparse, parse_qs
+import os
+import itertools
+from requests import Request, Session
+
+def create_request_urls(base_url, primary_filters, secondary_filters, headers=None, auth=None):
+    """
+    Generate prepared requests based on primary and secondary filters.
+
+    Args:
+        base_url (str): The base API URL.
+        primary_filters (list): List of primary filter dictionaries.
+        secondary_filters (list): List of secondary filter dictionaries.
+        headers (dict): Optional headers for the request.
+        auth (tuple): Optional basic authentication (username, password).
+
+    Returns:
+        list: A list of prepared requests.
+    """
+    session = Session()
+    request_urls = []
+
+    # Generate combinations of primary filter criteria
+    primary_combinations = []
+    for filter_ in primary_filters:
+        field = filter_["field"]
+        if filter_["type"] == "range":
+            # Generate range values (e.g., dates)
+            start = filter_["start"]
+            end = filter_["end"]
+            primary_combinations.append([(field, start), (field, end)])
+        elif filter_["type"] == "list":
+            # Use list values directly
+            primary_combinations.append([(field, value) for value in filter_["values"]])
+        elif filter_["type"] == "single":
+            primary_combinations.append([(field, filter_["value"])])
+
+    # Cartesian product of primary filter combinations
+    primary_combinations = list(itertools.product(*primary_combinations))
+
+    # Safeguard against large number of combinations
+    if len(primary_combinations) > 10000:
+        raise ValueError("Too many primary filter combinations, consider reducing the input size.")
+
+    for combination in primary_combinations:
+        query_params = {}
+        for k, v in combination:
+            if k in query_params:
+                raise ValueError(f"Duplicate key detected in combination: {k}")
+            query_params[k] = v
+
+        # Add secondary filters to query params
+        for filter_ in secondary_filters:
+            field = filter_["field"]
+            if filter_["type"] == "single":
+                query_params[field] = filter_["value"]
+
+        # Check query string length to avoid HTTP 414 errors
+        query_string = "&".join(f"{k}={v}" for k, v in query_params.items())
+        if len(query_string) > 2000:  # Example threshold, adjust as needed
+            raise ValueError("Query string too long, consider splitting the request.")
+
+        # Prepare the URL
+        req = Request(
+            "GET",
+            base_url,
+            params=query_params,
+            headers=headers,
+            auth=auth
+        )
+        prepared = session.prepare_request(req)
+        request_urls.append(prepared)
+
+    return request_urls
+
+def generate_pyspark_partition_path(base_path, request_url, primary_filters):
+    """
+    Generate a PySpark-like partition path using primary filters from the request URL.
+
+    Args:
+        base_path (str): Base path or prefix for the partition path.
+        request_url (str): The request URL containing query parameters.
+        primary_filters (list): List of primary filter dictionaries.
+
+    Returns:
+        str: A partition path based on primary filters.
+    """
+    # Parse the URL to extract query parameters
+    parsed_url = urlparse(request_url)
+    query_params = parse_qs(parsed_url.query)  # Returns a dictionary of query params
+
+    # Only use primary filters to construct the path
+    partition_segments = []
+    for filter_ in primary_filters:
+        field = filter_["field"]
+        if field in query_params:
+            values = query_params.get(field, [])  # Safely retrieve the field values
+            for value in values:
+                partition_segments.append(f"{field.lower()}={str(value).lower()}")
+        else:
+            print (query_params)
+            raise KeyError(f"Expected primary filter field '{field}' not found in query parameters.")
+
+    # Join the segments to create a partition path
+    partition_path = base_path + '/' + '/'.join(partition_segments)
+    return partition_path
+
+# Example usage
+base_url = "https://example.com/odata"
+base_path = "s3://data-lake"
+headers = {"Authorization": "Bearer YOUR_TOKEN"}
+primary_filters = [
+    {
+        "field": "frdate",
+        "type": "range",
+        "operator": "eq",
+        "start": "2024-12-01",
+        "end": "2024-12-05",
+        "relation": "and"
+    },
+    {
+        "field": "todate",
+        "type": "range",
+        "operator": "eq",
+        "start": "2024-12-01",
+        "end": "2024-12-05",
+        "relation": "and"
+    }
+]
+secondary_filters = [
+    {
+        "field": "Status",
+        "type": "single",
+        "operator": "eq",
+        "value": "Active",
+        "relation": "and"
+    }
+]
+
+# Step 1: Generate Prepared Requests
+prepared_requests = create_request_urls(base_url, primary_filters, secondary_filters, headers=headers)
+
+# Step 2: Generate Partition Paths for Primary Filters
+for req in prepared_requests:
+    partition_path = generate_pyspark_partition_path(base_path, req.url, primary_filters)
+    print("Request URL:", req.url)
+    print("Partition Path:", partition_path)
+    print("---")
