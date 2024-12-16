@@ -1844,3 +1844,42 @@ def build_requests(base_url, config):
         requests.append(f"{base_url}?$filter={urllib.parse.quote(full_query)}")
 
     return requests
+
+# Example Usage
+base_url = "https://example.com/odata"
+filter_config = {
+    "primary_filters": [
+        {
+            "field": "todate",
+            "type": "range",
+            "operator": "eq",
+            "start": "2024-12-01",
+            "end": "2024-12-02"
+        },
+        {
+            "field": "fromdate",
+            "type": "range",
+            "operator": "eq",
+            "start": "2024-12-01",
+            "end": "2024-12-02"
+        }
+    ],
+    "secondary_filters": [
+        {
+            "field": "Status",
+            "type": "single",
+            "operator": "eq",
+            "value": "Active"
+        },
+        {
+            "field": "Type",
+            "type": "single",
+            "operator": "ne",
+            "value": "Closed"
+        }
+    ]
+}
+
+requests = build_requests(base_url, filter_config)
+for req in requests:
+    print(req)
