@@ -1831,19 +1831,39 @@ def build_requests(base_url, config):
     primary_filters = config.get("primary_filters", [])
     secondary_filters = config.get("secondary_filters", [])
 
+    # Handle empty filters
+    if not primary_filters and not secondary_filters:
+        return [base_url]  # No filters, return base URL
+
     # Generate combinations of primary filters
-    primary_combinations = build_primary_combinations(primary_filters)
+    primary_combinations = build_primary_combinations(primary_filters) if primary_filters else [[]]
 
     # Build the secondary filter clause
-    secondary_clause = build_secondary_clause(secondary_filters)
+    secondary_clause = build_secondary_clause(secondary_filters) if secondary_filters else ""
 
     # Combine primary combinations with secondary filters
     for primary_combination in primary_combinations:
-        primary_clause = " and ".join(primary_combination)
-        full_query = f"{primary_clause} and {secondary_clause}" if secondary_clause else primary_clause
-        requests.append(f"{base_url}?$filter={urllib.parse.quote(full_query)}")
+        if primary_combination:
+            primary_clause = " and ".join(primary_combination)
+        else:
+            primary_clause = ""
+
+        if primary_clause and secondary_clause:
+            full_query = f"{primary_clause} and {secondary_clause}"
+        elif primary_clause:
+            full_query = primary_clause
+        elif secondary_clause:
+            full_query = secondary_clause
+        else:
+            full_query = ""  # No filters at all
+
+        if full_query:
+            requests.append(f"{base_url}?$filter={urllib.parse.quote(full_query)}")
+        else:
+            requests.append(base_url)  # No filters, just base URL
 
     return requests
+
 
 # Example Usage
 base_url = "https://example.com/odata"
