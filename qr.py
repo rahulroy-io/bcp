@@ -1781,6 +1781,8 @@ https://dbc-f46ce310-2494.cloud.databricks.com/settings/user/developer?o=3445049
 import urllib.parse
 from datetime import datetime, timedelta
 from itertools import product
+import requests
+
 
 def generate_date_range(start, end):
     """Generate a list of dates between start and end (inclusive)."""
@@ -1791,13 +1793,14 @@ def generate_date_range(start, end):
         yield current_date.strftime("%Y-%m-%d")
         current_date += timedelta(days=1)
 
+
 def build_primary_combinations(primary_filters):
     """Generate all combinations of primary filters."""
     filter_values = []
     for primary_filter in primary_filters:
         field = primary_filter["field"]
         operator = primary_filter["operator"]
-        
+
         if primary_filter["type"] == "range":
             # Generate individual values for range
             values = [f"{field} {operator} '{date}'" for date in generate_date_range(primary_filter["start"], primary_filter["end"])]
@@ -1808,11 +1811,12 @@ def build_primary_combinations(primary_filters):
         
         else:
             raise ValueError(f"Unsupported filter type: {primary_filter['type']}")
-        
+
         filter_values.append(values)
 
     # Generate all combinations of primary filters
     return list(product(*filter_values))
+
 
 def build_secondary_clause(secondary_filters):
     """Combine all secondary filters into a single clause."""
@@ -1825,15 +1829,19 @@ def build_secondary_clause(secondary_filters):
         clauses.append(clause)
     return " and ".join(clauses)
 
-def build_requests(base_url, config):
-    """Generate all requests based on primary and secondary filters."""
-    requests = []
+
+def build_prepared_requests(base_url, config, auth=None, headers=None):
+    """Generate all prepared requests based on primary and secondary filters."""
+    prepared_requests = []
     primary_filters = config.get("primary_filters", [])
     secondary_filters = config.get("secondary_filters", [])
 
     # Handle empty filters
     if not primary_filters and not secondary_filters:
-        return [base_url]  # No filters, return base URL
+        # No filters, return base request
+        req = requests.Request("GET", base_url, headers=headers, auth=auth)
+        prepared_requests.append(req.prepare())
+        return prepared_requests
 
     # Generate combinations of primary filters
     primary_combinations = build_primary_combinations(primary_filters) if primary_filters else [[]]
@@ -1858,11 +1866,16 @@ def build_requests(base_url, config):
             full_query = ""  # No filters at all
 
         if full_query:
-            requests.append(f"{base_url}?$filter={urllib.parse.quote(full_query)}")
+            query_url = f"{base_url}?$filter={urllib.parse.quote(full_query)}"
         else:
-            requests.append(base_url)  # No filters, just base URL
+            query_url = base_url
 
-    return requests
+        # Create the request
+        req = requests.Request("GET", query_url, headers=headers, auth=auth)
+        prepared_requests.append(req.prepare())
+
+    return prepared_requests
+
 
 
 # Example Usage
