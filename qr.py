@@ -1775,11 +1775,72 @@ def create_delta_lake():
     except Exception as e:
         raise Exception(f'Forced Exception due to {e}')
 
-
-
-
-
-
-
-
 https://dbc-f46ce310-2494.cloud.databricks.com/settings/user/developer?o=3445049866680796
+
+
+import urllib.parse
+from datetime import datetime, timedelta
+from itertools import product
+
+def generate_date_range(start, end):
+    """Generate a list of dates between start and end (inclusive)."""
+    start_date = datetime.strptime(start, "%Y-%m-%d")
+    end_date = datetime.strptime(end, "%Y-%m-%d")
+    current_date = start_date
+    while current_date <= end_date:
+        yield current_date.strftime("%Y-%m-%d")
+        current_date += timedelta(days=1)
+
+def build_primary_combinations(primary_filters):
+    """Generate all combinations of primary filters."""
+    filter_values = []
+    for primary_filter in primary_filters:
+        field = primary_filter["field"]
+        operator = primary_filter["operator"]
+        
+        if primary_filter["type"] == "range":
+            # Generate individual values for range
+            values = [f"{field} {operator} '{date}'" for date in generate_date_range(primary_filter["start"], primary_filter["end"])]
+        
+        elif primary_filter["type"] == "list":
+            # Generate individual values for list
+            values = [f"{field} {operator} '{value}'" for value in primary_filter["values"]]
+        
+        else:
+            raise ValueError(f"Unsupported filter type: {primary_filter['type']}")
+        
+        filter_values.append(values)
+
+    # Generate all combinations of primary filters
+    return list(product(*filter_values))
+
+def build_secondary_clause(secondary_filters):
+    """Combine all secondary filters into a single clause."""
+    clauses = []
+    for secondary_filter in secondary_filters:
+        field = secondary_filter["field"]
+        operator = secondary_filter["operator"]
+        value = secondary_filter["value"]
+        clause = f"{field} {operator} '{value}'"
+        clauses.append(clause)
+    return " and ".join(clauses)
+
+def build_requests(base_url, config):
+    """Generate all requests based on primary and secondary filters."""
+    requests = []
+    primary_filters = config.get("primary_filters", [])
+    secondary_filters = config.get("secondary_filters", [])
+
+    # Generate combinations of primary filters
+    primary_combinations = build_primary_combinations(primary_filters)
+
+    # Build the secondary filter clause
+    secondary_clause = build_secondary_clause(secondary_filters)
+
+    # Combine primary combinations with secondary filters
+    for primary_combination in primary_combinations:
+        primary_clause = " and ".join(primary_combination)
+        full_query = f"{primary_clause} and {secondary_clause}" if secondary_clause else primary_clause
+        requests.append(f"{base_url}?$filter={urllib.parse.quote(full_query)}")
+
+    return requests
