@@ -2555,3 +2555,91 @@ def send_request(prepared_request, max_retries=3, initial_delay=1):
 
     print(f"Request failed after {max_retries} attempts. Returning None.")
     return None
+
+
+def paginate_request(prepared_request, send_request_fn, page_size=100):
+    """
+    Paginate requests and retrieve all data.
+
+    Args:
+        prepared_request (requests.PreparedRequest): The base prepared request object.
+        send_request_fn (function): Function to send the request and retrieve a response.
+        page_size (int): The number of items per page.
+
+    Returns:
+        list: A list containing all paginated response data.
+    """
+    session = requests.Session()
+    all_data = []
+    next_url = prepared_request.url  # Start with the base URL
+
+    while next_url:
+        print(f"Fetching data from: {next_url}")
+
+        # Update the request with the current URL for pagination
+        request = requests.Request(
+            method=prepared_request.method,
+            url=next_url,
+            headers=prepared_request.headers,
+            auth=prepared_request.auth,
+        )
+        prepared_paginated_request = session.prepare_request(request)
+
+        # Send the request and retrieve data
+        response_data = send_request_fn(prepared_paginated_request)
+        if not response_data or "value" not in response_data:
+            print("No more data to retrieve or invalid response.")
+            break
+
+        # Append the current batch of data
+        all_data.extend(response_data["value"])
+
+        # Check for pagination link
+        next_url = response_data.get("@odata.nextLink", None)
+
+    return all_data
+
+
+def validate_data_count(prepared_request, send_request_fn, page_size=1000):
+    """
+    Validate data count by paginating through the count endpoint.
+
+    Args:
+        prepared_request (requests.PreparedRequest): The prepared request object.
+        send_request_fn (function): Function to send the request and retrieve a response.
+        page_size (int): The page size for count validation.
+
+    Returns:
+        int: The total validated count.
+    """
+    session = requests.Session()
+    total_count = 0
+    next_url = f"{prepared_request.url}/$count"
+
+    while next_url:
+        print(f"Validating count from: {next_url}")
+
+        # Prepare the paginated count request
+        request = requests.Request(
+            method=prepared_request.method,
+            url=next_url,
+            headers=prepared_request.headers,
+            auth=prepared_request.auth,
+        )
+        prepared_count_request = session.prepare_request(request)
+
+        # Send the request and retrieve the count
+        response_data = send_request_fn(prepared_count_request)
+        if response_data is None:
+            print("Failed to retrieve count data.")
+            break
+
+        # Increment total count
+        total_count += int(response_data)
+
+        # Check for pagination link in the count response
+        next_url = response_data.get("@odata.nextLink", None)
+
+    print(f"Total validated count: {total_count}")
+    return total_count
+
