@@ -2291,3 +2291,226 @@ for prepared_request in prepared_requests:
     print (prepared_request.url + '\n' + partition_path)
 
 
+import requests
+import os
+import json
+from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+# Function to send an HTTP GET request
+def send_request(url, auth=None, headers=None):
+    try:
+        response = requests.get(url, auth=auth, headers=headers, timeout=10)
+        response.raise_for_status()
+        return response.json()
+    except requests.RequestException as e:
+        print(f"Request failed for URL: {url}. Error: {e}")
+        return None
+
+# Function to validate the total count of data using $count
+def validate_data_count(base_url, auth=None, headers=None, page_size=100):
+    total_count = 0
+    parsed_url = urlparse(base_url)
+
+    try:
+        # First, try to directly get the full count
+        count_url = f"{parsed_url.scheme}://{parsed_url.netloc}{parsed_url.path}/$count"
+        print(f"Validating count using URL: {count_url}")
+        response = requests.get(count_url, auth=auth, headers=headers, timeout=10)
+        response.raise_for_status()
+        total_count = int(response.text)
+        print(f"Total count validated: {total_count}")
+    except requests.RequestException as e:
+        print(f"Direct count failed. Paginating count... Error: {e}")
+        # If direct count fails, paginate to get the total count
+        for skip in range(0, 10**6, page_size):  # Arbitrarily large range
+            query_params = parse_qs(parsed_url.query)
+            query_params['$top'] = [page_size]
+            query_params['$skip'] = [skip]
+
+            paginated_query = urlencode(query_params, doseq=True)
+            paginated_url = urlunparse((
+                parsed_url.scheme,
+                parsed_url.netloc,
+                parsed_url.path,
+                parsed_url.params,
+                paginated_query,
+                parsed_url.fragment
+            ))
+
+            print(f"Requesting paginated count at: {paginated_url}")
+            response_data = send_request(paginated_url, auth, headers)
+            if response_data and response_data.get('value'):
+                total_count += len(response_data['value'])
+            else:
+                print("No more data during count pagination. Stopping count validation.")
+                break
+
+        print(f"Total count (paginated) validated: {total_count}")
+
+    return total_count
+
+# Function to paginate requests
+def paginate_request(base_url, auth=None, headers=None, page_size=100, max_pages=10):
+    combined_data = []
+    parsed_url = urlparse(base_url)
+
+    for page_number in range(1, max_pages + 1):
+        query_params = parse_qs(parsed_url.query)
+        query_params['$top'] = [page_size]
+        query_params['$skip'] = [(page_number - 1) * page_size]
+
+        paginated_query = urlencode(query_params, doseq=True)
+        paginated_url = urlunparse((
+            parsed_url.scheme,
+            parsed_url.netloc,
+            parsed_url.path,
+            parsed_url.params,
+            paginated_query,
+            parsed_url.fragment
+        ))
+
+        print(f"Requesting page {page_number}: {paginated_url}")
+        response_data = send_request(paginated_url, auth, headers)
+        if response_data and response_data.get('value'):
+            combined_data.extend(response_data['value'])
+        else:
+            print(f"No data received on page {page_number}. Stopping pagination.")
+            break
+
+    return combined_data
+
+# Function to store data to a specific path
+def store_data_to_path(data, directory_path, file_name):
+    try:
+        if not os.path.exists(directory_path):
+            os.makedirs(directory_path)
+
+        file_path = os.path.join(directory_path, file_name)
+        with open(file_path, 'w') as file:
+            json.dump(data, file, indent=4)
+        print(f"Data successfully stored at: {file_path}")
+    except Exception as e:
+        print(f"Failed to store data. Error: {e}")
+
+# Function to process multiple URLs concurrently
+def process_multiple_urls_concurrently(url_list, auth=None, headers=None, page_size=100, max_pages=10, max_workers=1, output_dir="output"):
+    all_data = {}
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        future_to_url = {
+            executor.submit(paginate_request, url, auth, headers, page_size, max_pages): url
+            for url in url_list
+        }
+
+        for future in as_completed(future_to_url):
+            url = future_to_url[future]
+            try:
+                result = future.result()
+                all_data[url] = result
+                print(f"Completed processing for URL: {url}")
+                
+                # Validate count for this URL
+                validated_count = validate_data_count(url, auth, headers, page_size)
+                print(f"Validated count for {url}: {validated_count}")
+
+                # Store the data into the output directory
+                file_name = f"data_{url.split('/')[-1].split('?')[0]}.json"
+                store_data_to_path(result, output_dir, file_name)
+
+            except Exception as e:
+                print(f"Error processing URL {url}: {e}")
+                all_data[url] = None
+
+    return all_data
+
+
+url_list = [
+    "https://example.com/odata/Entities",
+    "https://example.com/odata/Items",
+]
+
+auth = ("username", "password")
+headers = {"Accept": "application/json"}
+
+all_data = process_multiple_urls_concurrently(
+    url_list, auth=auth, headers=headers, page_size=50, max_pages=5, max_workers=1, output_dir="data_output"
+)
+
+
+# Function to validate the total count of data using paginated requests
+def validate_data_count(base_url, auth=None, headers=None, page_size=100):
+    total_count = 0
+    parsed_url = urlparse(base_url)
+
+    # Always paginate through the data and sum the counts
+    for skip in range(0, 10**6, page_size):  # Arbitrarily large range
+        query_params = parse_qs(parsed_url.query)
+        query_params['$top'] = [page_size]
+        query_params['$skip'] = [skip]
+
+        paginated_query = urlencode(query_params, doseq=True)
+        paginated_url = urlunparse((
+            parsed_url.scheme,
+            parsed_url.netloc,
+            parsed_url.path,
+            parsed_url.params,
+            paginated_query,
+            parsed_url.fragment
+        ))
+
+        print(f"Requesting paginated count at: {paginated_url}")
+        response_data = send_request(paginated_url, auth, headers)
+        if response_data and response_data.get('value'):
+            total_count += len(response_data['value'])
+        else:
+            print("No more data during count pagination. Stopping count validation.")
+            break
+
+    print(f"Total count validated (paginated): {total_count}")
+    return total_count
+
+
+import time
+import requests
+from requests.exceptions import RequestException
+
+def send_request(url, auth=None, headers=None, max_retries=3, initial_delay=1):
+    """
+    Send an HTTP GET request to the given URL with retry mechanism.
+    
+    Args:
+        url (str): The request URL.
+        auth (tuple): Authentication credentials (optional).
+        headers (dict): Request headers (optional).
+        max_retries (int): Maximum number of retry attempts (default=3).
+        initial_delay (int): Initial retry delay in seconds (default=1).
+    
+    Returns:
+        dict: The JSON response data or None on failure.
+    """
+    attempt = 0
+    delay = initial_delay
+    
+    while attempt < max_retries:
+        try:
+            print(f"Attempt {attempt + 1}: Sending request to {url}")
+            response = requests.get(url, auth=auth, headers=headers, timeout=30)
+            
+            # Check for successful response
+            if response.status_code == 200:
+                return response.json()
+            else:
+                print(f"Request failed with status code {response.status_code}. Retrying...")
+        
+        except RequestException as e:
+            print(f"Error during request: {e}. Retrying...")
+        
+        # Increment retry count and delay
+        attempt += 1
+        time.sleep(delay)
+        delay *= 2  # Exponential backoff
+    
+    print(f"Request failed after {max_retries} attempts. Returning None.")
+    return None
+
