@@ -2514,3 +2514,44 @@ def send_request(url, auth=None, headers=None, max_retries=3, initial_delay=1):
     print(f"Request failed after {max_retries} attempts. Returning None.")
     return None
 
+import time
+import requests
+from requests.exceptions import RequestException
+
+def send_request(prepared_request, max_retries=3, initial_delay=1):
+    """
+    Send an HTTP request using a prepared request object with retry mechanism.
+
+    Args:
+        prepared_request (requests.PreparedRequest): The prepared request object.
+        max_retries (int): Maximum number of retry attempts (default=3).
+        initial_delay (int): Initial retry delay in seconds (default=1).
+
+    Returns:
+        dict: The JSON response data or None on failure.
+    """
+    session = requests.Session()
+    attempt = 0
+    delay = initial_delay
+
+    while attempt < max_retries:
+        try:
+            print(f"Attempt {attempt + 1}: Sending request to {prepared_request.url}")
+            response = session.send(prepared_request, timeout=30)
+
+            # Check for successful response
+            if response.status_code == 200:
+                return response.json()
+            else:
+                print(f"Request failed with status code {response.status_code}. Retrying...")
+
+        except RequestException as e:
+            print(f"Error during request: {e}. Retrying...")
+
+        # Increment retry count and delay
+        attempt += 1
+        time.sleep(delay)
+        delay *= 2  # Exponential backoff
+
+    print(f"Request failed after {max_retries} attempts. Returning None.")
+    return None
