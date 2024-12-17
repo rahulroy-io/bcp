@@ -2066,3 +2066,228 @@ for req in prepared_requests:
     print("Request URL:", req.url)
     print("Partition Path:", partition_path)
     print("---")
+
+
+
+
+from urllib.parse import urlparse, parse_qs, quote, unquote
+
+import os
+import itertools
+import json
+from datetime import datetime as dt, timedelta
+import requests
+from itertools import product
+
+def generate_date_range(start, end):
+    """Generate a list of dates between start and end (inclusive)."""
+    start_date = dt.strptime(start, "%Y-%m-%d")
+    end_date = dt.strptime(end, "%Y-%m-%d")
+    if start_date>end_date:
+        raise Exception(f"start date {start_date} is greater than {end_date}")
+    current_date = start_date
+    while current_date <= end_date:
+        yield current_date.strftime("%Y-%m-%d")
+        current_date += timedelta(days=1)
+
+def build_primary_combinations(primary_filters):
+    """Generate all combinations of primary filters."""
+    filter_values = []
+    for primary_filter in primary_filters:
+        if primary_filter["type"] == "daterange":
+            # Generate individual values for range
+            if 'field' in primary_filter:
+                field = primary_filter["field"]
+                operator = primary_filter["operator"]
+                values = [f"{field} {operator} '{date}'" for date in generate_date_range(primary_filter["start"], primary_filter["end"])]
+            elif 'fields' in primary_filter:
+                values = []
+                operator = primary_filter["operator"]
+                for date in generate_date_range(primary_filter["start"], primary_filter["end"]):
+                    string = ''
+                    for field in primary_filter['fields']:
+                        string = string + f"{field} {operator} '{date}' "
+                    values.append(string.strip(' '))
+                # [f"{field} {operator} '{date}'" for date in generate_date_range(primary_filter["start"], primary_filter["end"]) for field in primary_filter['fields']]
+        
+        elif primary_filter["type"] == "list":
+            field = primary_filter["field"]
+            operator = primary_filter["operator"]
+            # Generate individual values for list
+            values = [f"{field} {operator} '{value}'" for value in primary_filter["values"]]
+        
+        else:
+            raise ValueError(f"Unsupported filter type: {primary_filter['type']}")
+
+        filter_values.append(values)
+
+    # Generate all combinations of primary filters
+    return list(product(*filter_values))
+
+
+def build_secondary_clause(secondary_filters):
+    """Combine all secondary filters into a single clause."""
+    clauses = []
+    for secondary_filter in secondary_filters:
+        field = secondary_filter["field"]
+        operator = secondary_filter["operator"]
+        value = secondary_filter["value"]
+        clause = f"{field} {operator} '{value}'"
+        clauses.append(clause)
+    return " and ".join(clauses)
+
+def build_prepared_requests(base_url, config, auth=None, headers=None):
+    """Generate all prepared requests based on primary and secondary filters."""
+    prepared_requests = []
+    primary_filters = config.get("primary_filters", [])
+    secondary_filters = config.get("secondary_filters", [])
+
+    # Handle empty filters
+    if not primary_filters and not secondary_filters:
+        # No filters, return base request
+        req = requests.Request("GET", base_url, headers=headers, auth=auth)
+        prepared_requests.append(req.prepare())
+        return prepared_requests
+
+    # Generate combinations of primary filters
+    primary_combinations = build_primary_combinations(primary_filters) if primary_filters else [[]]
+
+    # Build the secondary filter clause
+    secondary_clause = build_secondary_clause(secondary_filters) if secondary_filters else ""
+
+    # Combine primary combinations with secondary filters
+    for primary_combination in primary_combinations:
+        if primary_combination:
+            primary_clause = " and ".join(primary_combination)
+        else:
+            primary_clause = ""
+
+        if primary_clause and secondary_clause:
+            full_query = f"{primary_clause} and {secondary_clause}"
+        elif primary_clause:
+            full_query = primary_clause
+        elif secondary_clause:
+            full_query = secondary_clause
+        else:
+            full_query = ""  # No filters at all
+
+        if full_query:
+            query_url = f"{base_url}?$filter={quote(full_query)}"
+        else:
+            query_url = base_url
+
+        # Create the request
+        req = requests.Request("GET", query_url, headers=headers, auth=auth)
+        prepared_requests.append(req.prepare())
+
+    return prepared_requests
+
+def generate_pyspark_partition_path(base_path, request_url, filter_config):
+    """
+    Generate a PySpark-compatible partition path using primary filters 
+    from a single request URL.
+
+    Args:
+        base_path (str): Base path or prefix for the partition path.
+        request_url (str): The request URL containing query parameters.
+        filter_config (dict): The filter configuration dictionary.
+
+    Returns:
+        str: A partition path based on filters.
+    """
+    # Parse the URL and extract query parameters
+    parsed_url = urlparse(request_url)
+    query_params = parse_qs(parsed_url.query)
+
+    # Extract the $filter query string and decode it
+    filter_string = query_params.get('$filter', [None])[0]
+    if not filter_string:
+        return ""  # Return empty if no filter string found
+
+    filter_string = unquote(filter_string)  # Decode percent-encoded filter string
+
+    # Dictionary to store key-value pairs for the partition path
+    partition_data = {}
+
+    # Process primary filters
+    for filter_config_item in filter_config['primary_filters']:
+        if "fields" in filter_config_item:  # Handling 'fields' case (e.g., fromDate and toDate)
+            combined_field = "_".join([field.lower() for field in filter_config_item["fields"]])
+            value = filter_config_item["start"]
+            partition_data[combined_field] = value
+        elif "field" in filter_config_item:  # Handling single 'field' case
+            field = filter_config_item["field"]
+            field_lower = field.lower()
+            # Search for 'field eq' in the filter string
+            for condition in filter_string.split("and"):
+                condition = condition.strip()
+                if condition.startswith(f"{field} eq"):
+                    value = condition.split("eq")[1].strip(" '").lower()
+                    partition_data[field_lower] = value
+
+    # Construct partition segments
+    partition_segments = [f"{key}={value}" for key, value in partition_data.items()]
+    
+    # Combine base path and segments to form the partition path
+    partition_path = base_path + '/' + '/'.join(partition_segments)
+    return partition_path
+
+FILTER_CONFIG = '''{
+    "primary_filters": [
+        {
+            "fields": ["todate", "fromdate"],
+            "type": "daterange",
+            "operator": "eq",
+            "start": "2024-12-01",
+            "end": "2024-12-05",
+            "relation": "and"
+        },
+        {
+            "field": "City",
+            "type": "list",
+            "operator": "eq",
+            "values": [
+                "Kolkata",
+                "Delhi",
+                "Mumbai"
+            ],
+            "relation": "or"
+        }
+    ],
+    "secondary_filters": [
+        {
+            "field": "Status",
+            "type": "single",
+            "operator": "eq",
+            "value": "Active",
+            "relation": "and"
+        }
+    ]
+}'''
+
+filter_config = json.loads(FILTER_CONFIG)
+
+base_url = "https://example.com/odata"
+auth = ("username", "password")  # Example Basic Auth
+headers = {"Accept": "application/json"}  # Example Headers
+
+prepared_requests = build_prepared_requests(base_url, filter_config, auth=auth, headers=headers)
+
+# Base path for PySpark partition paths
+base_path = "s3://data-lake"
+
+base_url = "https://example.com/odata"
+auth = ("username", "password")  # Example Basic Auth
+headers = {"Accept": "application/json"}  # Example Headers
+
+prepared_requests = build_prepared_requests(base_url, filter_config, auth=auth, headers=headers)
+
+# Base path for PySpark partition paths
+base_path = "s3://data-lake"
+
+# Generate PySpark-compatible partition paths
+for prepared_request in prepared_requests:
+    partition_path = generate_pyspark_partition_path(base_path, prepared_request.url, filter_config)
+    print (prepared_request.url + '\n' + partition_path)
+
+
