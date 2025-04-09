@@ -2643,3 +2643,394 @@ def validate_data_count(prepared_request, send_request_fn, page_size=1000):
     print(f"Total validated count: {total_count}")
     return total_count
 
+
+
+1. CDS Views Availability & Exposure
+Q1: Are CDS views already available and exposed via OData or another interface?
+☐ Yes
+☐ No, need to be created
+☐ Not sure
+🔎 Follow-up:
+If Yes → Proceed with integration plan.
+If No → Discuss CDS view creation effort with SAP functional team.
+If Not sure → Involve SAP Basis or functional consultant to assess.
+
+2. Data Sync Frequency
+Q2: What is the expected frequency of data sync?
+☐ Real-time
+☐ Near real-time
+☐ Batch
+🔎 Follow-up:
+Real-time → Favor DMS/CDC or SLT replication.
+Batch → Glue or OData-based extractions may suffice.
+
+3. Access to SLT or Replication Mechanism
+Q3: Is SAP SLT or other replication tool available for CDC?
+☐ SLT
+☐ No
+☐ 3rd party tools
+☐ Not sure
+🔎 Follow-up:
+If SLT is available → Explore CDC replication.
+If not → Batch/API-based strategies must be designed.
+
+4. Volume of Daily Data Loads
+Q4: What is the approximate volume of daily data?
+☐ <100k
+☐ 100k–1M
+☐ >1M
+☐ Not sure
+🔎 Follow-up:
+Large volumes → Use scalable ingestion (Glue, Spark, DMS full load).
+Unclear volumes → Request volume samples or size reports.
+
+5. Partitioning and Key Columns
+Q5: Are there key columns for incremental loads?
+☐ Yes
+☐ Logic needed
+☐ No
+☐ Not sure
+🔎 Follow-up:
+If available → Optimize loads by filtering.
+If not → Prepare for full table scans or artificial watermarking.
+
+6. Primary Keys and Change Tracking
+Q6: Are PKs and update timestamps present?
+☐ Both
+☐ Only PK
+☐ Only timestamp
+☐ Neither
+☐ Not sure
+🔎 Follow-up:
+If both present → Enables efficient CDC or UPSERT logic.
+If missing → Plan for full overwrite or log-based ingestion.
+
+7. Sample Data for Testing
+Q7: Can sample data (~1 day) be provided?
+☐ Yes (dump or access)
+☐ No
+☐ Not sure
+🔎 Follow-up:
+If Yes → Begin integration POC.
+If No → Request lower envs or sanitized data for dry runs.
+
+8. Deletes and Soft Deletes
+Q8: How are deletes handled?
+☐ Soft
+☐ Hard
+☐ Both
+☐ Not sure
+🔎 Follow-up:
+Soft deletes → Add filters in logic.
+Hard deletes → Require CDC or delta log reconciliation.
+
+9. Transactional vs Master Data Frequency
+Q9: How frequently does each data type change?
+☐ Transactional more
+☐ Both frequently
+☐ Rarely
+☐ Not sure
+🔎 Follow-up:
+Frequent changes → Plan incremental load & schedule.
+Rare changes → Less frequent master pulls acceptable.
+
+10. Existing Staging Layer
+Q10: Is there a staging layer like BW/DataSphere?
+☐ Yes
+☐ No
+☐ Needs setup
+☐ Not sure
+🔎 Follow-up:
+Use staging layer if available → Avoid direct OLTP load.
+If not → Assess impact of direct load and data volume.
+
+11. Integration Preference
+Q11: Preferred data integration strategy?
+☐ DMS
+☐ Glue + PySpark
+☐ OData API
+☐ 3rd-party
+☐ Open to suggestions
+🔎 Follow-up:
+Align integration choice with sync frequency, latency, volume, team skills.
+
+12. Business Use-Cases & Querying
+Q12: What will data be used for post-integration?
+☐ Reporting
+☐ Analytics
+☐ Data lake
+☐ Other
+🔎 Follow-up:
+Reporting → Schema modeling is critical.
+Analytics → May require data denormalization.
+Data lake → Format & partitioning matter.
+
+13. Security & Access
+Q13: Are there restrictions on data access?
+☐ Yes
+☐ No
+☐ Not sure
+🔎 Follow-up:
+If Yes → Check compliance & set up secure credentials/roles.
+If Not sure → Consult SAP Security team.
+
+14. Environment Access (Dev/Test/Prod)
+Q14: What environments are available?
+☐ Dev/Test
+☐ Test/Prod
+☐ Prod only
+☐ Not sure
+🔎 Follow-up:
+Dev/Test access → Start POC safely.
+Prod only → Raise risk flag, consider non-prod mirror.
+
+15. Expected Replication Lag
+Q15: What replication lag is acceptable?
+☐ <5 min
+☐ <1 hour
+☐ Daily
+☐ Best effort
+☐ Not sure
+🔎 Follow-up:
+Strict lag → DMS/SLT likely needed.
+Relaxed lag → Batch or OData feasible.
+
+16. Data Sensitivity & Masking
+Q16: Are PII/sensitive fields masked or encrypted?
+☐ Mask before ingest
+☐ Mask after ingest
+☐ No
+☐ Not sure
+🔎 Follow-up:
+Masking needed → Add masking/encryption in ETL.
+Check compliance & audit obligations.
+
+17. Network & Connectivity Constraints
+Q17: Are there connectivity restrictions?
+☐ VPN/DirectConnect
+☐ Firewall setup needed
+☐ Public APIs only
+☐ Not sure
+🔎 Follow-up:
+No connection yet → Plan VPC, routing, security group setup.
+
+18. Audit Logging & Data Lineage
+Q18: Is audit or lineage tracking required?
+☐ Yes
+☐ Partial
+☐ No
+☐ Not sure
+🔎 Follow-up:
+Yes → Build metadata lineage and job tracking logs.
+No → Simplifies design, but verify future reporting needs.
+
+19. Error Handling & Retry
+Q19: Expected behavior on failures?
+☐ Retry from checkpoint
+☐ Skip & log
+☐ Fail and alert
+☐ Not sure
+🔎 Follow-up:
+Retry logic → Add checkpoints or idempotent loaders.
+Fail-fast → Add alerting mechanism.
+
+20. Data Model Alignment & Business Validation
+Q20: Will business validate the integrated data model?
+☐ Yes
+☐ Tech team only
+☐ No validation
+☐ Not sure
+🔎 Follow-up:
+Business involvement → Set up UAT or test sign-off cycle.
+
+Q1: What modules/data domains are available in Minda Sparsh for integration?
+☐ Sales
+☐ Procurement
+☐ Inventory
+☐ Customer-specific data
+☐ Engineering/product config
+☐ Others: ___________
+
+🔎 Follow-up:
+Helps determine data domain scope from Minda Sparsh. Clarifies functional reach of Sparsh vs SAP.
+
+Q2: How is data stored and exposed from Minda Sparsh?
+☐ Database tables (RDBMS)
+☐ Flat files (CSV/Excel exports)
+☐ REST/SOAP APIs
+☐ Manual file uploads
+☐ Not sure
+
+🔎 Follow-up:
+Determines integration strategy (e.g., JDBC pull, Snowpipe, API crawler, manual drops).
+
+Q3: Is there a schema/data dictionary available for Minda Sparsh?
+☐ Yes, complete schema
+☐ Partial schema or data model
+☐ No schema available
+☐ Not sure
+
+🔎 Follow-up:
+If unavailable → Plan a schema discovery phase with the source team.
+
+Q4: What are the frequency and modes of data availability from Minda Sparsh?
+☐ Real-time via APIs
+☐ Near real-time sync (every 15 min–hourly)
+☐ Daily batch files
+☐ Weekly/monthly drops
+☐ Ad hoc/manual on request
+
+🔎 Follow-up:
+Aligns ingestion frequency in the lakehouse. If batch → Plan for Snowpipe or Glue scheduled jobs.
+
+Q5: What fields or keys are available to join Minda Sparsh data with SAP or other systems?
+☐ Model
+☐ Variant
+☐ Customer ID
+☐ Part Number
+☐ KIT ID
+☐ No common fields
+☐ Not sure
+
+🔎 Follow-up:
+Helps design master data harmonization. Missing keys → Requires mapping layer or enrichment logic.
+
+Q6: What is the volume of data coming from Minda Sparsh per day/week?
+☐ < 50k records
+☐ 50k–500k records
+☐ > 500k records
+☐ Not sure
+
+🔎 Follow-up:
+Informs infrastructure decisions (compute, scaling). High volume → Prepare for stream/batch partitioning.
+
+Q7: How is data versioning or change tracking handled in Sparsh?
+☐ Time-stamped updates
+☐ Change flags (insert/update/delete)
+☐ Overwrites entire table/file
+☐ No versioning (static snapshots)
+☐ Not sure
+
+🔎 Follow-up:
+Critical for incremental loads and CDC logic. No versioning → Consider full loads with delta logic in lake.
+
+Q8: Is historical data available in Minda Sparsh?
+☐ Yes, full historical load
+☐ Partial history (e.g., 3–6 months)
+☐ Only current snapshot
+☐ Not sure
+
+🔎 Follow-up:
+Impacts initial load strategy. Full history → Great for backtesting and modeling.
+
+Q9: Are there any access/authentication requirements for Minda Sparsh?
+☐ VPN access required
+☐ Role-based credentials (DB/API)
+☐ Public/internal endpoint available
+☐ Access not yet configured
+☐ Not sure
+
+🔎 Follow-up:
+Plan network access or authentication automation for scheduled jobs.
+
+Q10: Are there known data quality issues or manual data manipulation in Minda Sparsh?
+☐ Yes, frequent cleansing required
+☐ Some transformation needed
+☐ Data is clean and standardized
+☐ Not sure
+
+🔎 Follow-up:
+Helps assess need for DQ pipelines and cleansing logic in ingestion/curation layers.
+
+🔍 Section A – Source System Behavior & Access
+Q1.1: What is the underlying technology stack of Minda Sparsh?
+☐ SQL Server
+☐ SAP HANA
+☐ In-house custom DB
+☐ Other: __________
+📌 Follow-up: Helps determine how well it integrates with DMS, Glue, or needs custom ingestion.
+
+Q1.2: Is Minda Sparsh hosted on-prem, in the cloud, or hybrid setup?
+☐ On-prem
+☐ Private cloud
+☐ Public cloud (e.g., AWS, Azure)
+☐ Hybrid
+📌 Follow-up: This decides whether VPN, Direct Connect, or on-prem agent is needed.
+
+Q1.3: Is the system OLTP or OLAP in nature?
+☐ OLTP
+☐ OLAP
+☐ Mixed workload
+📌 Follow-up: OLTP systems require more care in CDC and performance.
+
+Q1.4: Does the system support exposing data via REST APIs, OData, or other services?
+☐ Yes, APIs are available
+☐ No, only DB/table level access
+☐ Partially (custom APIs for specific modules)
+📌 Follow-up: If APIs are available, consider API-based ingestion for certain modules.
+
+📊 Section B – Volume & Change Rate (Minda Sparsh Specific)
+Q2.1: What is the average and peak volume of data in key transactional modules (e.g., LTP, Indents, GC metrics)?
+☐ <100k records/month
+☐ 100k–1M records/month
+☐ >1M records/month
+📌 Follow-up: Required to size Glue jobs or Snowpipe streams.
+
+Q2.2: Is the data in Minda Sparsh event-driven or batch-uploaded from other systems (e.g., SAP)?
+☐ Real-time user entry
+☐ Batch interface from SAP or Excel
+☐ Mixed
+📌 Follow-up: Impacts latency of sync and replication logic.
+
+Q2.3: Do tables contain audit columns like created_at, updated_at, deleted_flag, etc.?
+☐ Yes
+☐ Partially
+☐ No
+📌 Follow-up: Essential for custom CDC via Glue.
+
+Q2.4: Are historical versions of records maintained in the same table (Type 2 SCD) or overwritten?
+☐ Maintained (versioned)
+☐ Overwritten
+☐ Depends on table
+📌 Follow-up: If overwritten, need CDC or snapshot reconciliation logic.
+
+🛠️ Section C – Integration Feasibility & Constraints
+Q3.1: Is there a current interface exporting Minda Sparsh data to external systems?
+☐ Yes (to SAP, BW, Excel)
+☐ No
+☐ Under evaluation
+📌 Follow-up: Reuse possible or need to create new pipelines.
+
+Q3.2: Who owns the schema definitions and can approve data extraction logic?
+☐ Internal IT
+☐ Functional team
+☐ Third-party vendor
+📌 Follow-up: Important for field mapping and FSD approvals.
+
+Q3.3: Can we run lightweight discovery scripts on the DB (e.g., to assess data profile, table relationships)?
+☐ Yes
+☐ No
+☐ Under Approval
+📌 Follow-up: Helps design Glue jobs or data contracts.
+
+🔒 Section D – Access, Authentication, and Network Setup
+Q4.1: What is the authentication method supported for data extraction?
+☐ SQL Auth / DB user
+☐ SSO / OAuth
+☐ Key-based API token
+📌 Follow-up: Helps finalize connector configuration for Glue or DMS.
+
+Q4.2: Are there specific IP allowlists or firewall rules required to access the system from AWS?
+☐ Yes, need to open firewall
+☐ Already configured
+☐ Requires approval from network team
+📌 Follow-up: Determines timeline and complexity for network setup.
+
+Q4.3: Does the Minda Sparsh system undergo regular schema changes or column additions?
+☐ Frequently
+☐ Rarely
+☐ Never (stable schema)
+📌 Follow-up: Affects robustness of integration and schema evolution tracking.
+
+
+
