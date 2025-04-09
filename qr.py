@@ -3173,4 +3173,225 @@ Q2.11: How will we track lineage from raw → structured → curated?
 📌 Follow-up: Important for trust and traceability.
 
 
+✅ Data Integration Assessment Questionnaire
+🚩 Section 1: Source System Overview
+Q1: What underlying technology does Minda Sparsh use?
+☐ SQL Server
+☐ SAP HANA
+☐ Custom DB (specify): __________
+☐ Other: __________
+
+Q2: Where is Minda Sparsh hosted?
+☐ On-prem
+☐ Azure / AWS / Other cloud
+☐ Hybrid
+
+Q3: What type of workload is it?
+☐ OLTP
+☐ OLAP
+☐ Mixed
+
+Q4: How is Sparsh data exposed?
+☐ Direct DB tables
+☐ REST APIs / OData
+☐ CSV/Excel exports
+☐ Manual uploads
+☐ Not sure
+
+Q5: Are SAP CDS views already exposed via OData/API?
+☐ Yes
+☐ No, require creation
+☐ Not sure
+
+📊 Section 2: Data Volume & Frequency
+Q6: What's the expected sync frequency?
+☐ Real-time (CDC/SLT)
+☐ Near real-time (hourly)
+☐ Batch (daily+)
+
+Q7: Average daily data volume?
+☐ <100k records
+☐ 100k–1M
+☐ >1M
+☐ Not sure
+
+Q8: Data type update frequency?
+☐ Mostly transactional
+☐ Both transactional/master data frequently
+☐ Rarely changes (mostly master data)
+
+Q9: Historical data availability in Sparsh?
+☐ Full history
+☐ Partial (3–6 months)
+☐ Only latest snapshot
+☐ Not sure
+
+🔄 Section 3: Incremental Load & Change Tracking
+Q10: Are key columns available for incremental loading?
+☐ Yes
+☐ Logic needs creation
+☐ No / not sure
+
+Q11: Are Primary Keys (PKs) and timestamps available?
+☐ Both present
+☐ Only PK
+☐ Only timestamp
+☐ Neither / unsure
+
+Q12: How does Sparsh handle deletes?
+☐ Soft delete
+☐ Hard delete
+☐ Both
+☐ Not sure
+
+Q13: How is data versioning/change tracking handled?
+☐ Timestamp updates
+☐ Change flags
+☐ Overwrite files/tables
+☐ Static snapshots / No tracking
+☐ Not sure
+
+🔑 Section 4: Data Integration Preferences
+Q14: What's the preferred integration strategy?
+☐ DMS (CDC/replication)
+☐ Glue + PySpark (batch)
+☐ AWS AppFlow (API integration)
+☐ Open to recommendations
+
+Q15: Is SAP SLT or another CDC tool available?
+☐ SLT
+☐ Third-party
+☐ No CDC available
+☐ Not sure
+
+🎯 Section 5: Downstream Use & Expectations
+Q16: Intended downstream data use?
+☐ Reporting
+☐ Analytics
+☐ Data lake exploration
+☐ Other (specify): __________
+
+Q17: Required data freshness?
+☐ Real-time / <5 min lag
+☐ Hourly
+☐ Daily
+☐ Best-effort
+
+Q18: Schema granularity for curated layer?
+☐ Transactional/record-level
+☐ Daily/monthly aggregates
+☐ KPI-level aggregation
+
+Q19: Required data transformations before curation?
+☐ Calculated fields (profit/margin)
+☐ Master data joins
+☐ Row-level quality filters
+
+🔐 Section 6: Security, Compliance & Governance
+Q20: Any PII/sensitive fields requiring masking/encryption?
+☐ Mask before ingest
+☐ Mask after ingest
+☐ None / unsure
+
+Q21: Restrictions on data access/security requirements?
+☐ Specific access rules
+☐ No restrictions
+☐ Not sure
+
+Q22: Audit logging/data lineage requirements?
+☐ Required
+☐ Partial logging sufficient
+☐ Not required now
+
+🌐 Section 7: Network & Connectivity
+Q23: Connectivity method to source systems?
+☐ VPN/DirectConnect
+☐ Firewall configuration
+☐ Public APIs only
+☐ Not sure
+
+Q24: Authentication mechanisms supported?
+☐ SQL user/password
+☐ SSO/OAuth
+☐ API key/token
+
+Q25: Firewall/IP restrictions?
+☐ Firewall changes required
+☐ Already configured
+☐ Pending approval
+
+🛠️ Section 8: Data Quality & Validation
+Q26: Known data quality issues/manual intervention?
+☐ Frequent data cleansing needed
+☐ Minor transformations required
+☐ Data is clean and ready
+
+Q27: Downstream validation requirements?
+☐ Control totals/checksums required
+☐ Row-count/basic validation
+☐ No strict validation
+
+📂 Section 9: Internal Data Lake Layer Design
+Q28: Raw layer data storage preference?
+☐ Original format (CSV/XML/JSON)
+☐ Convert immediately to Parquet
+
+Q29: Raw layer folder structure preference?
+☐ <source>/<table>/<YYYY>/<MM>/<DD>
+☐ Include batch ID or timestamps
+
+Q30: Raw data immutability?
+☐ Append-only
+☐ Overwrite allowed
+
+Q31: Structured layer transformations?
+☐ Normalize/enrich fields
+☐ Standardize codes/enums
+☐ Minimal cleanup
+
+Q32: Structured layer partitioning & format?
+☐ Parquet + partitioning (by date/model)
+☐ Simple structure (no partitioning)
+
+Q33: Glue Catalog for structured data discovery?
+☐ Required (Athena/BI)
+☐ Not required
+
+🧪 Section 10: Environment & Testing
+Q34: Available environments for testing/deployment?
+☐ Dev/Test
+☐ Test/Prod
+☐ Prod only
+
+Q35: Can sample/test data (~1-day extract) be provided?
+☐ Yes, immediately
+☐ No, requires sanitized samples
+☐ Not sure
+
+Q36: Business validation of data models post-integration?
+☐ Yes (business sign-off required)
+☐ Tech team validation only
+☐ No validation planned
+
+Q37: Error handling & retry strategy on failures?
+☐ Retry from checkpoint
+☐ Skip and log errors
+☐ Fail-fast and notify immediately
+
+📌 Section 11: Schema Ownership & Evolution
+Q38: Schema definitions & extraction approvals owned by?
+☐ Internal IT
+☐ Functional team
+☐ Vendor/external
+
+Q39: Schema change frequency in Sparsh?
+☐ Frequent
+☐ Rarely
+☐ Never (stable schema)
+
+Q40: Schema/data dictionary availability for Sparsh?
+☐ Full schema available
+☐ Partial schema
+☐ No schema
+
 
