@@ -3032,5 +3032,145 @@ Q4.3: Does the Minda Sparsh system undergo regular schema changes or column addi
 ☐ Never (stable schema)
 📌 Follow-up: Affects robustness of integration and schema evolution tracking.
 
+A. Functional Expectations
+Q1.1: What is the expected schema and granularity at the curated layer?
+☐ Record-level (transactional)
+☐ Daily/monthly aggregates
+☐ Model/variant-level KPIs
+📌 Follow-up: Impacts transformations, joins, and aggregations.
+
+Q1.2: What transformations/enrichments must occur before data lands in curated/Snowflake?
+☐ Derived columns (e.g., profit %, margin %)
+☐ Dimension joins (e.g., customer master, KIT hierarchy)
+☐ Row-level filters or quality rules
+📌 Follow-up: Define business rules in transformation layer.
+
+Q1.3: Are there specific schema naming conventions or harmonization rules to follow?
+☐ Yes, project-level naming standards exist
+☐ No, follow source schema
+☐ Will be defined during modeling
+📌 Follow-up: Helps ensure consistent datasets across Snowflake & Tableau.
+
+Q1.4: Is historical data required (snapshots) or only latest-state data?
+☐ Snapshot every load (historical)
+☐ Overwrite (latest state)
+☐ Depends on table
+📌 Follow-up: Impacts storage, versioning, and query logic.
+
+Q1.5: What is the expected data freshness for curated/BI use?
+☐ Daily by X AM
+☐ Hourly refresh
+☐ Real-time (streaming or <5 min delay)
+📌 Follow-up: Helps choose Snowpipe vs batch Glue job vs streaming.
+
+📌 B. Technical Format & Ingestion Style
+Q1.6: What file formats are preferred in structured/curated layers?
+☐ Parquet
+☐ CSV
+☐ JSON
+☐ Delta/Iceberg
+📌 Follow-up: Affects storage efficiency and query performance.
+
+Q1.7: Should the curated data be partitioned?
+☐ Yes (e.g., by date/model/customer)
+☐ No partitioning needed
+📌 Follow-up: Enables faster queries and cost-optimized scans.
+
+Q1.8: What is the preferred ingestion mechanism into Snowflake?
+☐ Snowpipe (push from S3)
+☐ Scheduled pull (external stage)
+☐ Manual load or third-party tool
+📌 Follow-up: Aligns with automation and access model.
+
+Q1.9: How should we signal data readiness?
+☐ File/folder naming pattern
+☐ Marker file (e.g., _SUCCESS)
+☐ Glue catalog/table update
+☐ Email/notification
+📌 Follow-up: Needed for orchestration and alerting setup.
+
+📌 C. Validation, Alerts & SLAs
+Q1.10: Will downstream teams validate load using record counts or control files?
+☐ Yes, control totals or hash checksums expected
+☐ No, only failure alerts
+☐ Partial validation (row counts, null checks)
+📌 Follow-up: Determines pre-curated validation strategy.
+
+Q1.11: Are there DQ (Data Quality) rules to enforce before promoting data?
+☐ Yes, business validation rules must pass
+☐ No strict rules; pass-through
+☐ In progress (will be defined)
+📌 Follow-up: DQ rules can be centralized or per dataset.
+
+Q1.12: How should we notify stakeholders about data load status?
+☐ SNS/Email
+☐ Slack/MS Teams alert
+☐ CloudWatch alarm
+☐ Logging only
+📌 Follow-up: Required for operational transparency.
+
+✅ Part 2: Internal Design Questions (Raw / Structured Layer Planning)
+Use these during technical design, especially in data lake and S3 layer planning sessions.
+
+📦 A. Raw Zone Planning (s3://lake/raw/...)
+Q2.1: What folder structure will I use in the raw zone?
+☐ <source>/<table>/<YYYY>/<MM>/<DD>/...
+☐ Include timestamp folders or batch ID
+📌 Follow-up: Drives consistency and future automation.
+
+Q2.2: Should I store files as-is or convert to columnar formats?
+☐ Store original (CSV/XML/JSON)
+☐ Convert to Parquet during ingestion
+📌 Follow-up: Converting early = faster downstream processing.
+
+Q2.3: Should raw data be immutable (append-only) or overwritten?
+☐ Append-only (recommended for audit)
+☐ Overwrite allowed for corrections
+📌 Follow-up: Influences data retention and lineage tracking.
+
+Q2.4: Do I need to capture file-level metadata?
+☐ Yes, store original filename, load time, source
+☐ No, record-level metadata is enough
+📌 Follow-up: Needed for traceability and audits.
+
+🧱 B. Structured Zone Planning
+Q2.5: What normalization/cleanup must be done before structured?
+☐ Trim whitespace, fix types, drop nulls
+☐ Standardize enums/codes (e.g., KIT categories)
+📌 Follow-up: Ensures clean joins, valid filters in BI layer.
+
+Q2.6: Should structured layer include harmonized keys and dimensions?
+☐ Yes, join with master/reference tables
+☐ Not needed, only pass raw fields
+📌 Follow-up: Required for consistent cross-system analysis.
+
+Q2.7: Should structured layer be Parquet with partitioning?
+☐ Yes
+☐ No
+📌 Follow-up: Optimize for Snowflake external table or Athena.
+
+Q2.8: Should Glue Catalog be used for structured zone discovery?
+☐ Yes, for Athena + DQ + BI exploration
+☐ No
+📌 Follow-up: Enables previewing and schema tracking.
+
+🧪 C. Governance & Lineage
+Q2.9: Where should I log schema mismatches or DQ failures?
+☐ Central logging (e.g., CloudWatch/S3)
+☐ DQ dashboard
+☐ Not required initially
+📌 Follow-up: Supports monitoring and compliance.
+
+Q2.10: Should we version structured data?
+☐ Yes, daily snapshot folders or Delta/Apache Iceberg
+☐ No, latest state is enough
+📌 Follow-up: Helps rollback, audit, time-travel queries.
+
+Q2.11: How will we track lineage from raw → structured → curated?
+☐ Metadata tagging
+☐ DataHub/Amundsen/Collibra
+☐ Manual documentation
+📌 Follow-up: Important for trust and traceability.
+
 
 
