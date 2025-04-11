@@ -3394,4 +3394,68 @@ Q40: Schema/data dictionary availability for Sparsh?
 ☐ Partial schema
 ☐ No schema
 
+1. Complexity of Infrastructure and Management
+AWS DMS:
+Requires additional overhead—replication instances, endpoints setup, and ongoing management. Monitoring CDC tasks, tuning replication instances, and handling DMS logs involve significant effort.
 
+AWS Glue:
+Fully managed ETL service. Minimal infrastructure management. Serverless execution reduces operational complexity significantly.
+
+2. Limited Data Transformation Capabilities
+AWS DMS:
+Primarily designed for migration or CDC tasks. It provides minimal transformation capability (basic filtering or simple renaming). Complex transformations (aggregations, joins, enrichments) aren’t natively supported.
+
+AWS Glue:
+Offers powerful transformation via PySpark scripts. Complex cleansing, aggregation, schema evolution, and enrichment processes are easy to manage and scale.
+
+3. Cost Implications
+AWS DMS:
+Charges based on replication instance hours and storage. Continuous replication with large datasets or multiple environments can quickly escalate costs, especially if always-on CDC is required.
+
+AWS Glue:
+Pay-as-you-go (serverless pricing). Charges only for the compute time (job execution). Cost-effective for batch or event-driven workloads.
+
+4. Schema Evolution and Flexibility
+AWS DMS:
+Less flexible with frequent schema changes in source databases. Altered source schemas often require manual interventions—table reloads or reconfiguration of endpoints and tasks.
+
+AWS Glue:
+Easily handles schema changes. Glue crawlers can auto-discover schema evolution, making it easier to maintain and adapt ETL processes dynamically.
+
+5. Integration Limitations
+AWS DMS:
+Primarily database-centric (RDBMS). Limited capabilities for non-relational, API-driven, or semi-structured data (e.g., JSON, XML, OData).
+
+AWS Glue:
+Highly flexible—supports relational (via JDBC), semi-structured data, JSON, XML, and REST APIs (via custom scripts). Ideal for broader integration scenarios.
+
+6. CDC Complexity and Constraints
+AWS DMS:
+CDC requires source database configurations (binlogs, transaction logs) that often require elevated privileges or source DB reconfiguration. Many clients hesitate or refuse due to security and operational concerns.
+
+AWS Glue:
+Does not need CDC-specific setups. Instead, Glue ETL scripts leverage incremental loads via audit columns, timestamps, or API endpoints—no deep database configurations required.
+
+7. Security and Compliance
+AWS DMS:
+Elevated DB access often required (e.g., sysadmin roles in SQL Server). Higher security scrutiny and potential audit challenges.
+
+AWS Glue:
+Limited permissions required (typically read-only on specific tables/views). Easier to comply with strict data governance and security policies.
+
+8. Network and Resource Overhead
+AWS DMS:
+Requires persistent connections between replication instances and databases. This continuous network load must be managed, especially over VPN or TGW connections—introducing latency or connectivity issues.
+
+AWS Glue:
+Works effectively in batch modes or triggered jobs, optimizing network usage and allowing controlled data transfers.
+
+🎯 When AWS DMS might still make sense:
+Real-time CDC is absolutely mandatory.
+
+Direct DB-to-DB migrations with minimal transformations.
+
+However, given your scenario (SAP integration, Azure SQL, OData, complex transformations, schema evolution), AWS Glue typically proves superior in simplicity, flexibility, and total cost of ownership.
+
+🚩 Recommended Response (If Client Challenges)
+"AWS DMS is excellent for straightforward, database-level migration or pure CDC use cases. However, considering the complexities of transformations, schema evolution, source system constraints, and operational overhead of DMS instances, AWS Glue is more agile, cost-effective, scalable, and easier to manage for our specific use case involving SAP OData, Minda Sparsh JDBC connectivity, and complex data harmonization."
