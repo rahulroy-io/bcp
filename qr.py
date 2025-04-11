@@ -3459,3 +3459,118 @@ However, given your scenario (SAP integration, Azure SQL, OData, complex transfo
 
 🚩 Recommended Response (If Client Challenges)
 "AWS DMS is excellent for straightforward, database-level migration or pure CDC use cases. However, considering the complexities of transformations, schema evolution, source system constraints, and operational overhead of DMS instances, AWS Glue is more agile, cost-effective, scalable, and easier to manage for our specific use case involving SAP OData, Minda Sparsh JDBC connectivity, and complex data harmonization."
+
+
+✅ Support Required at Source DB (for DMS)
+🔐 Database Configuration by DBA
+Enable CDC or equivalent logging:
+
+For SQL Server: Must enable MS-CDC or transactional replication. Required on each table involved.
+
+For Oracle: Enable supplemental logging, archiving, and grant logmining access if using LogMiner.
+
+For PostgreSQL: Set wal_level = logical, configure replication slots and replication user roles.
+
+Retain logs: Set up retention policies for transaction logs to avoid data loss between DMS captures.
+
+Create replication user:
+
+User must have SELECT, REPLICATION, and sometimes EXECUTE rights depending on the DB type.
+
+Firewall/IP allowlisting: Ensure replication instance’s IPs are whitelisted at source network layer.
+
+Schema stability: DMS prefers a stable schema during migration; frequent changes can lead to errors.
+
+👨‍💻 Support Expected from Source DBA & Business
+Team	Responsibility
+DBA	Enable CDC, configure logs, grant roles, open firewall ports, monitor health
+IT/Infra Team	Provide VPN connectivity, validate TLS/SSL certs if needed
+Business/SMEs	Confirm table ownership, provide key business fields for CDC & validation logic
+🛠️ Supported Source DB Versions (from DMS UG)​dms-ug.pdf#Welcome
+Microsoft SQL Server: 2012 to 2022 (except Express edition which is not supported)
+
+Oracle: 10.2 → 12.2, 18c, 19c (Enterprise/Standard)
+
+MySQL: 5.5 → 8.0 (DMS 3.4+)
+
+PostgreSQL: 9.6 → 16.x (DMS 3.5.3+ needed for latest)
+
+MariaDB: 10.0.24 → 10.6 (MySQL-compatible)
+
+IBM Db2 LUW: 9.7, 10.1, 10.5, 11.1, 11.5
+
+SAP ASE: 12.5 → 16
+
+MongoDB: 3.x → 6.0
+
+📌 Always validate DMS version compatibility for source features like CDC, compression, and secure LOB handling.
+
+✅ SQL Server – Source DB Prep Scripts for AWS DMS
+🔹 1. Enable CDC at the Database Level
+sql
+Copy
+Edit
+USE [YourDatabaseName];
+EXEC sys.sp_cdc_enable_db;
+🔹 2. Enable CDC on Specific Tables
+Repeat this for each table you want to replicate via DMS:
+
+sql
+Copy
+Edit
+EXEC sys.sp_cdc_enable_table
+@source_schema = N'dbo',
+@source_name = N'YourTableName',
+@role_name = NULL,
+@supports_net_changes = 1;
+You may customize @role_name for tighter access control.
+
+Set @supports_net_changes = 1 if DMS is using net changes for replication.
+
+🔹 3. Verify CDC is Enabled
+Check database-level:
+
+sql
+Copy
+Edit
+SELECT name, is_cdc_enabled FROM sys.databases WHERE name = 'YourDatabaseName';
+Check table-level:
+
+sql
+Copy
+Edit
+SELECT name, is_tracked_by_cdc FROM sys.tables WHERE name = 'YourTableName';
+🔹 4. Grant Access to DMS Replication User
+Create a new user or assign to existing login used by DMS:
+
+sql
+Copy
+Edit
+CREATE LOGIN dms_user WITH PASSWORD = 'StrongPassword!123';
+CREATE USER dms_user FOR LOGIN dms_user;
+ALTER ROLE db_owner ADD MEMBER dms_user;
+📌 Least-privilege principle is recommended. At minimum, grant:
+
+sql
+Copy
+Edit
+GRANT SELECT ON SCHEMA :: dbo TO dms_user;
+GRANT EXECUTE ON SCHEMA :: cdc TO dms_user;
+🔹 5. Ensure Transaction Log Retention
+CDC requires transaction logs to be retained long enough for DMS to capture changes.
+
+Set recovery model to FULL and ensure regular log backups:
+
+sql
+Copy
+Edit
+ALTER DATABASE [YourDatabaseName] SET RECOVERY FULL;
+-- Use a SQL Agent Job or scheduled backup solution
+BACKUP LOG [YourDatabaseName] TO DISK = 'C:\Backups\YourDB_LogBackup.trn';
+🔹 6. Firewall and Network Allowlisting
+Ensure the replication instance IP from AWS (or NAT gateway) is whitelisted in the Azure SQL Server Network Rules if hosted in a VM, or via NSG and routing tables.
+
+⚠️ Important Considerations
+These scripts only apply if SQL Server is self-hosted in a VM (not Azure SQL DB PaaS, which doesn't support CDC for DMS).
+
+If Minda Sparsh is using Azure SQL Managed Instance, CDC may be supported but needs version validation.
