@@ -3574,3 +3574,128 @@ Ensure the replication instance IP from AWS (or NAT gateway) is whitelisted in t
 These scripts only apply if SQL Server is self-hosted in a VM (not Azure SQL DB PaaS, which doesn't support CDC for DMS).
 
 If Minda Sparsh is using Azure SQL Managed Instance, CDC may be supported but needs version validation.
+
+✅ Minda Sparsh – Data Ingestion Design Document
+1. Overview
+This design outlines the secure, orchestrated ingestion of data from two primary source systems—SAP S4HANA and the Azure-hosted Minda Sparsh database—into the AWS ecosystem and onward to Snowflake. It is designed for modularity, auditability, and future scalability.
+
+2. Source Systems
+a. SAP S4HANA
+Interface: CDS Views exposed via OData API
+
+Access Method: AWS AppFlow (OData connector)
+
+Authentication: To be finalized (OAuth/API Key/Basic Auth)
+
+Frequency: Daily batch
+
+Incremental Logic: Based on last updated timestamps (to be confirmed with client)
+
+b. Minda Sparsh (Azure-hosted SQL Server)
+Interface: JDBC
+
+Access Method: AWS Glue PySpark job with JDBC connector
+
+Authentication: Stored in AWS Secrets Manager
+
+Frequency: Daily batch
+
+Incremental Logic: Timestamp-based filtering
+
+3. Network & Account Architecture
+Source Systems Hosted in Azure
+
+SAP and Minda Sparsh database are hosted in Azure
+
+Transit Gateway Account (AWS)
+
+Site-to-site VPN and routing between Azure and AWS environments
+
+Target AWS Accounts
+
+Dev, QA, and Prod accounts (to be provisioned)
+
+All services (Glue, AppFlow, Secrets Manager, S3, SNS) are deployed within these accounts
+
+4. Ingestion & Orchestration Flow
+SAP Flow (via AppFlow):
+Glue Workflow orchestrates entire flow
+
+Glue Shell Job triggers the AppFlow flow
+
+AppFlow pulls data from SAP OData and lands it in S3 Raw Layer
+
+Glue logs the run metadata into S3 log folder
+
+SNS Notification is sent to Snowflake team (topic per environment)
+
+Minda Sparsh Flow (via JDBC):
+Glue Workflow triggers a Glue PySpark Job
+
+Glue connects to Minda SQL Server via JDBC, ingests data to S3 Raw Layer
+
+Optional masking/transformations applied in PySpark
+
+Glue logs metadata to S3 log folder
+
+SNS Notification is sent to Snowflake team
+
+5. Target System
+Snowflake Data Warehouse
+
+Listens to SNS events via Snowpipe or EventBridge
+
+Loads data from external stage in S3 into Raw Layer
+
+Further modeling into Curated and Business layers (owned by Snowflake team)
+
+6. Logging & Metadata Tracking
+All ingestion runs log metadata (run ID, timestamps, row counts, status) into S3
+
+Logs are partitioned by date and source
+
+Monitoring via Athena is planned for querying log events
+
+Notifications are sent through SNS for success/failure tracking
+
+7. Security Considerations
+Encryption at Rest: S3 Buckets use AWS KMS-managed keys (handled by DevOps)
+
+Secrets Management: All DB/API credentials are stored in AWS Secrets Manager
+
+Data Masking: Sensitive fields (as defined by BA team) are masked in Glue using PySpark logic
+
+8. Version Control & Future Automation
+Code (Glue scripts, flow definitions) is stored in AWS CodeCommit
+
+No CICD in current phase; design allows for future integration with CodePipeline or GitHub Actions
+
+✅ 9. Text-Based Architecture Flow Diagram
+pgsql
+Copy
+Edit
+        +-------------------+                       +-------------------------+
+        |  SAP S4HANA       |                       |  Minda Sparsh SQL Server|
+        |  (OData API)      |                       |  (Azure-hosted DB)      |
+        +--------+----------+                       +-----------+-------------+
+                 |                                              |
+         CDS Views exposed                          JDBC Connection from Glue
+                 |                                              |
+         AWS AppFlow (OData Connector)                AWS Glue PySpark Job (JDBC)
+                 |                                              |
+                 v                                              v
+        +-------------------+                       +-------------------------+
+        |   S3 Raw Layer    |<----------------------+    Ingested Files       |
+        +--------+----------+                       +-----------+-------------+
+                 |                                              |
+        Metadata logs + job run info                 Metadata logs + masking
+                 |                                              |
+         AWS Glue Workflow (Dev/QA/Prod)   <--------+  Orchestrates both jobs
+                 |
+         +----------------------------+
+         |  SNS Notification (per env)|
+         +-------------+--------------+
+                       |
+              Snowflake Raw Layer
+             (via Snowpipe/EventBridge)
+
