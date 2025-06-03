@@ -90,3 +90,123 @@ def run_hudi_compaction(
         .mode("append")
         .save(hudi_table_path)
     )
+
+fact_job_run
+├─ run_id (string/uuid)
+│   └─ Unique identifier for this job execution (generated at job start).
+│
+├─ job_name (string)
+│   └─ Full canonical job name (e.g., minda_marketingdbo_tablesets_mssql_jdbc_s3_ingest).
+│
+├─ env (string)
+│   └─ Environment where it ran (dev / uat / prod).
+│
+├─ client (string)
+│   └─ Business client name parsed from job_name (e.g., minda).
+│
+├─ domain (string)
+│   └─ Logical domain or business area (e.g., marketingdbo).
+│
+├─ entity (string)
+│   └─ Entity being processed (e.g., tablesets).
+│
+├─ source (string)
+│   └─ Source system or technology (e.g., mssql).
+│
+├─ target (string)
+│   └─ Target system (e.g., s3).
+│
+├─ action (string)
+│   └─ Action type (e.g., ingest).
+│
+├─ start_ts (timestamp)
+│   └─ Timestamp when job started.
+│
+├─ end_ts (timestamp)
+│   └─ Timestamp when job finished.
+│
+├─ duration_sec (long)
+│   └─ Total runtime in seconds (end_ts − start_ts).
+│
+├─ status (string)
+│   └─ Final outcome: “running” (initial), then “success” / “fail” / “partial.”
+│
+├─ overall_error_msg (string)
+│   └─ If something blew up, the highest-level error message; NULL if successful.
+│
+├─ config_checksum (string)
+│   └─ Hash or fingerprint of job arguments or configuration files (for reproducibility).
+│
+└─ custom_md (string/json)
+    └─ Free-form JSON blob for any additional tags or future metadata (e.g., Git commit, run parameters).
+
+fact_job_event
+├─ event_id (string/uuid)
+│   └─ Unique identifier for this event row.
+│
+├─ run_id (string)
+│   └─ Foreign key back to fact_job_run.run_id.
+│
+├─ step_name (string)
+│   └─ Logical step (e.g., READ_JDBC, TRANSFORM, WRITE_S3, COMPACTION).
+│
+├─ event_type (string)
+│   └─ One of: START / END / ERROR / INFO / METADATA.
+│       • START  → beginning of a step  
+│       • END    → successful end of a step  
+│       • ERROR  → something went wrong in this step  
+│       • INFO   → informational note (e.g., validation passed)  
+│       • METADATA → table schema or partition info, etc.
+│
+├─ step_order (int)
+│   └─ Optional numeric ordering of steps (1, 2, 3…).
+│
+├─ event_ts (timestamp)
+│   └─ When this event was emitted.
+│
+├─ status (string)
+│   └─ “success” / “fail” / “warn” (for INFO or ERROR events).
+│
+├─ message (string)
+│   └─ Human-readable description or error text.
+│
+└─ event_payload (string/json)
+    └─ Any extra details as JSON:  
+        • For METADATA: { "table_path": "...", "columns": [...], "partition_cols": [...], "file_format": "parquet", ... }  
+        • For ERROR: full stack trace, exception type, etc.  
+        • For INFO: schema-validation results, etc.
+
+fact_job_metric
+├─ metric_id (string/uuid)
+│   └─ Unique identifier for this metric row.
+│
+├─ run_id (string)
+│   └─ Foreign key back to fact_job_run.run_id.
+│
+├─ step_name (string)
+│   └─ Step that generated this metric (e.g., READ_JDBC, VALIDATE, WRITE_S3).
+│
+├─ metric_name (string)
+│   └─ E.g., source_row_cnt, target_row_cnt, dq_rule_passed.
+│
+├─ metric_value (double)
+│   └─ Numeric value: row count, file size in MB, or 1/0 for boolean pass/fail.
+│
+├─ metric_unit (string)
+│   └─ Unit of measure: “rows” / “MB” / “pass” (for boolean) / seconds, etc.
+│
+├─ created_ts (timestamp)
+│   └─ When this metric was recorded.
+│
+└─ metric_payload (string/json)
+    └─ If the metric is complex, you can pack extra details here (e.g., histogram bins,
+       DQ rule details) as JSON.
+
+— 
+
+**Notes on where each category fits:**
+- **Run-level info, start/end, overall status →** `fact_job_run`.
+- **Per-step START/END, table schema events, exceptions, and general “INFO” events →** `fact_job_event`.
+- **Purely numeric results (DQ rules, row counts, file sizes) →** `fact_job_metric`.
+
+You can build any necessary views later; this tree shows exactly which column lives in which table and why.
