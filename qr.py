@@ -1,212 +1,155 @@
-from pyspark.sql import SparkSession, DataFrame
-from datetime import datetime
-import uuid
+# dynamodb_glue_logger.py (Enhanced for Structured Payloads)
+"""
+Plug-and-play DynamoDB metadata logger for AWS Glue (Spark, Python Shell, or general Python).
+- Drop into S3, zip, and import as an extra file for Glue jobs.
+- Handles table creation, inserts, basic querying, error handling, and schema evolution.
+- Supports job- or event-level logging with optional sort key for multi-event logs.
+- Promotes selected metadata fields to top-level attributes for efficient querying.
+"""
+import boto3
+import datetime
+import time
+from botocore.exceptions import ClientError
 
-def write_job_metadata_to_hudi(
-    spark: SparkSession,
-    hudi_table_path: str,
-    table_name: str,
-    records: list,
-    hudi_database: str = "default",
-    partition_keys: list = ["job_id", "dt"],
-    record_key: str = "record_id"
-):
-    """
-    Insert job metadata records into Hudi table (MOR, insert-only).
-    """
-    # Convert records list of dicts to DataFrame
-    df = spark.createDataFrame(records)
+class GlueDynamoLogger:
+    # Choose which fields to promote to top-level for easy query/filter
+    PROMOTE_FIELDS = [
+        'event_type', 'event_name', 'event_state', 'job_run_id', 'event_ts_epoch', 'event_ts_isoformat', 'job_type', 'env', 'step', 'record_id', 'event_date', 'task', 'metric_name', 'metric_value'
+    ]
+    def __init__(self, table_name, region_name="ap-south-1", partition_key="job_name", sort_key="event_ts_isoformat"):
+        self.dynamodb = boto3.resource("dynamodb", region_name=region_name)
+        self.table_name = table_name
+        self.partition_key = partition_key
+        self.sort_key = sort_key
+        self.table = self._ensure_table_exists()
 
-    # Hudi options for insert-only, MOR
-    hudi_options = {
-        "hoodie.table.name": table_name,
-        "hoodie.datasource.write.table.type": "MERGE_ON_READ",
-        "hoodie.datasource.write.operation": "insert",
-        "hoodie.datasource.write.recordkey.field": record_key,
-        "hoodie.datasource.write.partitionpath.field": ",".join(partition_keys),
-        "hoodie.datasource.write.precombine.field": "timestamp",  # Not used but required
-        "hoodie.upsert.shuffle.parallelism": 1,
-        "hoodie.insert.shuffle.parallelism": 1,
-        "hoodie.datasource.hive_sync.enable": "true",
-        "hoodie.datasource.hive_sync.database": hudi_database,
-        "hoodie.datasource.hive_sync.table": table_name,
-        "hoodie.datasource.hive_sync.partition_fields": ",".join(partition_keys),
-        "hoodie.datasource.hive_sync.use_jdbc": "false",  # For Glue/Athena
-        "hoodie.cleaner.policy.failed.writes": "EAGER"
-    }
+    def _ensure_table_exists(self):
+        try:
+            table = self.dynamodb.Table(self.table_name)
+            table.load()
+        except ClientError as e:
+            if e.response["Error"]["Code"] == "ResourceNotFoundException":
+                key_schema = [{"AttributeName": self.partition_key, "KeyType": "HASH"}]
+                attr_defs = [{"AttributeName": self.partition_key, "AttributeType": "S"}]
+                if self.sort_key:
+                    key_schema.append({"AttributeName": self.sort_key, "KeyType": "RANGE"})
+                    attr_defs.append({"AttributeName": self.sort_key, "AttributeType": "S"})
+                table = self.dynamodb.create_table(
+                    TableName=self.table_name,
+                    KeySchema=key_schema,
+                    AttributeDefinitions=attr_defs,
+                    BillingMode="PAY_PER_REQUEST",
+                )
+                table.wait_until_exists()
+            else:
+                raise
+        return self.dynamodb.Table(self.table_name)
 
-    # Write DataFrame to Hudi table
-    (
-        df.write.format("hudi")
-        .options(**hudi_options)
-        .mode("append")
-        .save(hudi_table_path)
-    )
+    def log_event(self, job_id, status, metadata=None, event_id=None, retries=3, backoff=1.0):
+        # Promote selected fields from metadata to top-level for queryability
+        item = {
+            self.partition_key: str(job_id),
+            "timestamp": datetime.datetime.utcnow().isoformat(),
+            "status": status,
+        }
+        if self.sort_key:
+            item[self.sort_key] = event_id or item["timestamp"]
+        if metadata:
+            for field in self.PROMOTE_FIELDS:
+                if field in metadata:
+                    item[field] = metadata[field]
+            item["payload"] = metadata # store full original payload as 'payload'
+        for attempt in range(retries):
+            try:
+                self.table.put_item(Item=item)
+                return
+            except ClientError as e:
+                if attempt < retries - 1 and e.response["Error"]["Code"] in [
+                    "ProvisionedThroughputExceededException", "ThrottlingException"]:
+                    time.sleep(backoff * (2 ** attempt))
+                else:
+                    raise
 
+    def get_log(self, job_id, event_id=None):
+        key = {self.partition_key: str(job_id)}
+        if self.sort_key and event_id:
+            key[self.sort_key] = event_id
+        try:
+            resp = self.table.get_item(Key=key)
+            return resp.get("Item")
+        except ClientError as e:
+            print(f"Error getting item: {e}")
+            return None
 
-records = [
-    {
-        "record_id": str(uuid.uuid4()),
-        "job_id": "job_001",
-        "dt": datetime.now().strftime("%Y-%m-%d"),
-        "status": "SUCCESS",
-        "timestamp": datetime.now().isoformat(),
-        "message": "Job executed successfully",
-        # ... other fields
-    },
-    # ...more records
-]
-write_job_metadata_to_hudi(
-    spark=spark,
-    hudi_table_path="s3://bucket/path/to/hudi_table",
-    table_name="job_metadata",
-    records=records,
-    hudi_database="job_logs"
-)
+    def query_by_field(self, field, value, limit=100):
+        # Scan-based filtering: efficient if field is a promoted field
+        try:
+            resp = self.table.scan(
+                FilterExpression=f"#{field} = :val",
+                ExpressionAttributeNames={f"#{field}": field},
+                ExpressionAttributeValues={":val": value},
+                Limit=limit,
+            )
+            return resp.get("Items", [])
+        except ClientError as e:
+            print(f"Error querying by field: {e}")
+            return []
 
+    def query_by_job(self, job_id):
+        if not self.sort_key:
+            item = self.get_log(job_id)
+            return [item] if item else []
+        try:
+            resp = self.table.query(
+                KeyConditionExpression=boto3.dynamodb.conditions.Key(self.partition_key).eq(str(job_id))
+            )
+            return resp.get("Items", [])
+        except ClientError as e:
+            print(f"Error querying by job: {e}")
+            return []
 
-from pyspark.sql import SparkSession
-
-def run_hudi_compaction(
-    spark: SparkSession,
-    hudi_table_path: str,
-    table_name: str
-):
-    hudi_options = {
-        "hoodie.table.name": table_name,
-        "hoodie.datasource.write.table.type": "MERGE_ON_READ",
-        "hoodie.datasource.compaction.async.enable": "false",  # Force sync compaction
-        "hoodie.datasource.write.operation": "compaction",
-        "hoodie.datasource.hive_sync.enable": "true",
-        "hoodie.datasource.hive_sync.database": "job_logs",
-        "hoodie.datasource.hive_sync.table": table_name,
-        "hoodie.datasource.hive_sync.partition_fields": "job_id,dt"
-    }
-    # Create an empty DataFrame (compaction does not require new data)
-    df = spark.createDataFrame([], schema="record_id string, job_id string, dt string, status string, timestamp string, message string")
-    (
-        df.write.format("hudi")
-        .options(**hudi_options)
-        .mode("append")
-        .save(hudi_table_path)
-    )
-
-fact_job_run
-├─ run_id (string/uuid)
-│   └─ Unique identifier for this job execution (generated at job start).
-│
-├─ job_name (string)
-│   └─ Full canonical job name (e.g., minda_marketingdbo_tablesets_mssql_jdbc_s3_ingest).
-│
-├─ env (string)
-│   └─ Environment where it ran (dev / uat / prod).
-│
-├─ client (string)
-│   └─ Business client name parsed from job_name (e.g., minda).
-│
-├─ domain (string)
-│   └─ Logical domain or business area (e.g., marketingdbo).
-│
-├─ entity (string)
-│   └─ Entity being processed (e.g., tablesets).
-│
-├─ source (string)
-│   └─ Source system or technology (e.g., mssql).
-│
-├─ target (string)
-│   └─ Target system (e.g., s3).
-│
-├─ action (string)
-│   └─ Action type (e.g., ingest).
-│
-├─ start_ts (timestamp)
-│   └─ Timestamp when job started.
-│
-├─ end_ts (timestamp)
-│   └─ Timestamp when job finished.
-│
-├─ duration_sec (long)
-│   └─ Total runtime in seconds (end_ts − start_ts).
-│
-├─ status (string)
-│   └─ Final outcome: “running” (initial), then “success” / “fail” / “partial.”
-│
-├─ overall_error_msg (string)
-│   └─ If something blew up, the highest-level error message; NULL if successful.
-│
-├─ config_checksum (string)
-│   └─ Hash or fingerprint of job arguments or configuration files (for reproducibility).
-│
-└─ custom_md (string/json)
-    └─ Free-form JSON blob for any additional tags or future metadata (e.g., Git commit, run parameters).
-
-fact_job_event
-├─ event_id (string/uuid)
-│   └─ Unique identifier for this event row.
-│
-├─ run_id (string)
-│   └─ Foreign key back to fact_job_run.run_id.
-│
-├─ step_name (string)
-│   └─ Logical step (e.g., READ_JDBC, TRANSFORM, WRITE_S3, COMPACTION).
-│
-├─ event_type (string)
-│   └─ One of: START / END / ERROR / INFO / METADATA.
-│       • START  → beginning of a step  
-│       • END    → successful end of a step  
-│       • ERROR  → something went wrong in this step  
-│       • INFO   → informational note (e.g., validation passed)  
-│       • METADATA → table schema or partition info, etc.
-│
-├─ step_order (int)
-│   └─ Optional numeric ordering of steps (1, 2, 3…).
-│
-├─ event_ts (timestamp)
-│   └─ When this event was emitted.
-│
-├─ status (string)
-│   └─ “success” / “fail” / “warn” (for INFO or ERROR events).
-│
-├─ message (string)
-│   └─ Human-readable description or error text.
-│
-└─ event_payload (string/json)
-    └─ Any extra details as JSON:  
-        • For METADATA: { "table_path": "...", "columns": [...], "partition_cols": [...], "file_format": "parquet", ... }  
-        • For ERROR: full stack trace, exception type, etc.  
-        • For INFO: schema-validation results, etc.
-
-fact_job_metric
-├─ metric_id (string/uuid)
-│   └─ Unique identifier for this metric row.
-│
-├─ run_id (string)
-│   └─ Foreign key back to fact_job_run.run_id.
-│
-├─ step_name (string)
-│   └─ Step that generated this metric (e.g., READ_JDBC, VALIDATE, WRITE_S3).
-│
-├─ metric_name (string)
-│   └─ E.g., source_row_cnt, target_row_cnt, dq_rule_passed.
-│
-├─ metric_value (double)
-│   └─ Numeric value: row count, file size in MB, or 1/0 for boolean pass/fail.
-│
-├─ metric_unit (string)
-│   └─ Unit of measure: “rows” / “MB” / “pass” (for boolean) / seconds, etc.
-│
-├─ created_ts (timestamp)
-│   └─ When this metric was recorded.
-│
-└─ metric_payload (string/json)
-    └─ If the metric is complex, you can pack extra details here (e.g., histogram bins,
-       DQ rule details) as JSON.
-
-— 
-
-**Notes on where each category fits:**
-- **Run-level info, start/end, overall status →** `fact_job_run`.
-- **Per-step START/END, table schema events, exceptions, and general “INFO” events →** `fact_job_event`.
-- **Purely numeric results (DQ rules, row counts, file sizes) →** `fact_job_metric`.
-
-You can build any necessary views later; this tree shows exactly which column lives in which table and why.
+# -------------------
+# Example usage (Glue ETL or Python Shell, plug & play):
+#
+# from dynamodb_glue_logger import GlueDynamoLogger
+#
+# logger = GlueDynamoLogger(
+#     table_name="your_dynamodb_metadata_table",
+#     region_name="ap-south-1",
+#     partition_key="job_name",        # Or "job_run_id"
+#     sort_key="event_ts_isoformat",   # Or "record_id"
+# )
+#
+# payload = {
+#     "task": "TASK03",
+#     "event_type": "JOB_STATUS",
+#     "event_name": "INGESTION_STARTED",
+#     "event_state": "SUCCESS",
+#     "event_payload": "",
+#     "metric_name": "",
+#     "metric_value": "",
+#     "job_run_id": "20240707123456",
+#     "event_ts_epoch": 1720457692.63,
+#     "event_ts_isoformat": "2024-07-08T08:34:52.634262",
+#     "job_type": "nbjob",
+#     "env": "uat",
+#     "step": "1",
+#     "record_id": "some-uuid",
+#     "event_date": "2024-07-08"
+# }
+#
+# logger.log_event(
+#     job_id=payload["job_name"],
+#     status=payload["event_state"],   # e.g. "SUCCESS"
+#     metadata=payload,
+#     event_id=payload["event_ts_isoformat"],  # as sort key
+# )
+#
+# # Fetch all events for a job:
+# items = logger.query_by_job(payload["job_name"])
+# for i in items:
+#     print(i)
+#
+# # Query by any promoted field, e.g. all failures:
+# failed = logger.query_by_field("event_state", "FAILURE")
+# print("Failed events:", failed)
