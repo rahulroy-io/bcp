@@ -1,3 +1,38 @@
+class GlueLogger:
+    def _init_(self, name='glue_logger', level=logging.INFO, mode='notebook'):
+        self.mode = mode  # 'notebook' or 'job'
+        self.logger = logging.getLogger(name)
+        self.logger.setLevel(level)
+        self.formatter = logging.Formatter(
+                    '[%(asctime)s] [%(levelname)s] - %(message)s',
+                    datefmt='%Y-%m-%d %H:%M:%S'
+        )
+        if not self.logger.handlers:
+            handler = logging.StreamHandler(sys.stdout)
+            handler.setFormatter(self.formatter)
+            self.logger.addHandler(handler)
+
+    def gprint(self, message, level=logging.INFO):
+        if self.mode == 'notebook':
+            # Manually create a LogRecord for formatting
+            record = self.logger.makeRecord(
+                self.logger.name, level, fn='', lno=0, msg=message, args=(), exc_info=None
+            )
+            print(self.formatter.format(record))
+        elif self.mode == 'job':
+            self.logger.log(level, message)
+        else:
+            raise ValueError(f"Unknown mode: {self.mode}")
+        
+    def set_mode(self, mode):
+        self.mode = mode
+
+    def set_level(self, level):
+        self.logger.setLevel(level)
+
+
+
+
 # dynamodb_glue_logger.py (Enhanced for Structured Payloads)
 """
 Plug-and-play DynamoDB metadata logger for AWS Glue (Spark, Python Shell, or general Python).
